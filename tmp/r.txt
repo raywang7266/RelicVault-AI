@@ -1,0 +1,11 @@
+HTTP/1.1 401 Unauthorized
+vary: RSC, Next-Router-State-Tree, Next-Router-Prefetch
+content-type: application/json
+set-cookie: sb-nmyxefwsrtzisrweksoh-auth-token-flow-02dd28db69e84ec239f055e6e0cd878a-code-verifier=base64-IjA5NTI4ZWY0ZmQ1NWNjZmJkN2MyYmRhNmJhYTgyYTliM2E4MDdjZjI1OWJkZGNiY2MzZWIyN2JjMmMxY2YzZTg1YmRkYjkwYjQyN2JiZWRhNGJjYTdhZjQxMGJlY2U1Zjc5ZGI2ZmNlOTMyOTMwZDEi; Path=/; Expires=Fri, 24 Sep 2027 14:33:17 GMT; Max-Age=34560000; SameSite=lax
+set-cookie: sb-nmyxefwsrtzisrweksoh-auth-token-flows-code-verifier=base64-WyIwMmRkMjhkYjY5ZTg0ZWMyMzlmMDU1ZTZlMGNkODc4YSJd; Path=/; Expires=Fri, 24 Sep 2027 14:33:17 GMT; Max-Age=34560000; SameSite=lax
+set-cookie: sb-nmyxefwsrtzisrweksoh-auth-token-code-verifier=base64-IjA5NTI4ZWY0ZmQ1NWNjZmJkN2MyYmRhNmJhYTgyYTliM2E4MDdjZjI1OWJkZGNiY2MzZWIyN2JjMmMxY2YzZTg1YmRkYjkwYjQyN2JiZWRhNGJjYTdhZjQxMGJlY2U1Zjc5ZGI2ZmNlOTMyOTMwZDEi; Path=/; Expires=Fri, 24 Sep 2027 14:33:17 GMT; Max-Age=34560000; SameSite=lax
+Date: Thu, 20 Aug 2026 14:33:17 GMT
+Connection: keep-alive
+Keep-Alive: timeout=5
+Transfer-Encoding: chunked
+

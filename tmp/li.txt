@@ -1,0 +1,8 @@
+HTTP/1.1 401 Unauthorized
+vary: RSC, Next-Router-State-Tree, Next-Router-Prefetch
+content-type: application/json
+Date: Thu, 20 Aug 2026 14:33:32 GMT
+Connection: keep-alive
+Keep-Alive: timeout=5
+Transfer-Encoding: chunked
+

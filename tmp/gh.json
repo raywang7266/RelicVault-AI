@@ -1,0 +1,1 @@
+{"ok":false,"error":"GitHub 登录未配置：请在 .env.local 中提供 GITHUB_CLIENT_ID 与 GITHUB_CLIENT_SECRET"}

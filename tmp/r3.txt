@@ -1,0 +1,9 @@
+HTTP/1.1 200 OK
+vary: RSC, Next-Router-State-Tree, Next-Router-Prefetch
+content-type: application/json
+set-cookie: rv_mock_session=eyJpZCI6Im1vY2stbXQxajJxamgtY3A5ZXd6IiwiZW1haWwiOiJhbGljZUBleGFtcGxlLmNvbSIsIm5hbWUiOiJhbGljZSIsImNyZWF0ZWRBdCI6IjIwMjYtMDgtMjBUMTM6MDA6MDQuNDQ1WiJ9; Path=/; Expires=Thu, 27 Aug 2026 13:00:09 GMT; Max-Age=604800; Secure; HttpOnly; SameSite=lax
+Date: Thu, 20 Aug 2026 13:00:09 GMT
+Connection: keep-alive
+Keep-Alive: timeout=5
+Transfer-Encoding: chunked
+

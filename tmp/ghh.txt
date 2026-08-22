@@ -1,0 +1,10 @@
+HTTP/1.1 307 Temporary Redirect
+vary: RSC, Next-Router-State-Tree, Next-Router-Prefetch
+location: https://github.com/login/oauth/authorize?client_id=Iv1.fake1234567890ab&redirect_uri=http%3A%2F%2Flocalhost%3A3000%2Fapi%2Fauth%2Fgithub%2Fcallback&scope=read%3Auser+user%3Aemail&state=9235174cb30a697477fbc760bb6067ff&allow_signup=true
+set-cookie: rv_oauth_state=9235174cb30a697477fbc760bb6067ff; Path=/; Expires=Thu, 20 Aug 2026 13:10:46 GMT; Max-Age=600; Secure; HttpOnly; SameSite=lax
+x-middleware-set-cookie: rv_oauth_state=9235174cb30a697477fbc760bb6067ff; Path=/; Expires=Thu, 20 Aug 2026 13:10:46 GMT; Max-Age=600; Secure; HttpOnly; SameSite=lax
+Date: Thu, 20 Aug 2026 13:00:46 GMT
+Connection: keep-alive
+Keep-Alive: timeout=5
+Transfer-Encoding: chunked
+
