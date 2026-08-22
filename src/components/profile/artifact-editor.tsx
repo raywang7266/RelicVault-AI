@@ -13,6 +13,7 @@ import LocationPicker, {
 } from "@/components/artifacts/location-picker";
 import SmartImage from "@/components/artifacts/smart-image";
 import { useTranslation } from "@/lib/i18n/i18n-provider";
+import { translateOption } from "@/lib/i18n/locales";
 
 interface ArtifactEditorProps {
   open: boolean;
@@ -38,7 +39,7 @@ export default function ArtifactEditor({
   onSave,
   onClose,
 }: ArtifactEditorProps) {
-  const { t } = useTranslation();
+  const { t, locale } = useTranslation();
   const [title, setTitle] = useState("");
   const [era, setEra] = useState("");
   const [dynasty, setDynasty] = useState("");
@@ -180,7 +181,7 @@ export default function ArtifactEditor({
                 <option value="">{t("common.all")}</option>
                 {DYNASTY_OPTIONS.map((d) => (
                   <option key={d} value={d}>
-                    {d}
+                    {translateOption(locale, d)}
                   </option>
                 ))}
               </select>
@@ -200,7 +201,7 @@ export default function ArtifactEditor({
                 <option value="">{t("common.all")}</option>
                 {MATERIAL_OPTIONS.map((m) => (
                   <option key={m} value={m}>
-                    {m}
+                    {translateOption(locale, m)}
                   </option>
                 ))}
               </select>
@@ -218,7 +219,7 @@ export default function ArtifactEditor({
               >
                 {STATUS_OPTIONS.map((s) => (
                   <option key={s} value={s}>
-                    {statusLabel(s)}
+                    {translateOption(locale, statusLabel(s))}
                   </option>
                 ))}
               </select>

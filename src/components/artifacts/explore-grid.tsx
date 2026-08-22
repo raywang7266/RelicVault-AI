@@ -21,7 +21,6 @@ import {
   DYNASTY_OPTIONS,
   MATERIAL_OPTIONS,
   STATUS_OPTIONS,
-  statusLabel,
   type Artifact,
   type Dynasty,
   type Material,
@@ -30,6 +29,7 @@ import {
 import ArtifactCard from "./artifact-card";
 import { useInteractions } from "@/lib/mock/interactions";
 import { useTranslation } from "@/lib/i18n/i18n-provider";
+import { translateOption } from "@/lib/i18n/locales";
 
 const MAX_ITEMS = 50;
 
@@ -307,6 +307,7 @@ interface FilterSelectProps {
 }
 
 function FilterSelect({ label, value, onChange, options }: FilterSelectProps) {
+  const { t, locale } = useTranslation();
   return (
     <label className="inline-flex items-center gap-1.5 rounded-lg border border-[#D6CBBA] bg-white px-3 py-1.5 text-sm">
       <span className="text-xs text-[#8C7E72]">{label}</span>
@@ -315,10 +316,10 @@ function FilterSelect({ label, value, onChange, options }: FilterSelectProps) {
         onChange={(e) => onChange(e.target.value)}
         className="bg-transparent text-[#2C221E] focus:outline-none"
       >
-        <option value="">全部</option>
+        <option value="">{t("common.all")}</option>
         {options.map((o) => (
           <option key={o} value={o}>
-            {o}
+            {translateOption(locale, o)}
           </option>
         ))}
       </select>

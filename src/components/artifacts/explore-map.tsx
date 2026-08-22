@@ -13,6 +13,7 @@ import "leaflet/dist/leaflet.css";
 import type { Artifact } from "@/lib/types/artifact";
 import SmartImage from "./smart-image";
 import { useTranslation } from "@/lib/i18n/i18n-provider";
+import { translateOption } from "@/lib/i18n/locales";
 
 interface ExploreMapProps {
   artifacts: Artifact[];
@@ -46,11 +47,34 @@ function FitBounds({ points }: { points: [number, number][] }) {
   return null;
 }
 
+/**
+ * 给坐标加一个确定性漂移，避免多个文物坐标完全相同时
+ * Marker 重叠导致只看到其中一个。
+ * 漂移由 id 哈希决定，因此同一文物每次渲染偏移一致、不会乱跳。
+ * 半径约 0.02~0.07 度（≈±2.2km~7.7km），让重叠坐标彻底分开，
+ * 仅用于地图展示分散，不改变存储值。
+ */
+function jitterPosition(id: string, lat: number, lng: number): [number, number] {
+  let h = 0;
+  for (let i = 0; i < id.length; i++) {
+    h = (h * 31 + id.charCodeAt(i)) >>> 0;
+  }
+  // 将哈希映射到 [0,1) 的两个分量
+  const a = (h % 1000) / 1000;
+  const b = ((h >> 10) % 1000) / 1000;
+  const angle = a * Math.PI * 2;
+  const radius = 0.02 + b * 0.05; // 0.02 ~ 0.07 度（≈±2.2km~7.7km），让重叠坐标彻底分离
+  return [
+    lat + Math.cos(angle) * radius,
+    lng + Math.sin(angle) * radius,
+  ];
+}
+
 export default function ExploreMap({
   artifacts,
   height = 520,
 }: ExploreMapProps) {
-  const { t } = useTranslation();
+  const { t, locale } = useTranslation();
   const geo = useMemo(
     () =>
       artifacts.filter(
@@ -92,12 +116,18 @@ export default function ExploreMap({
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
       />
-      {geo.map((a) => (
-        <Marker
-          key={a.id}
-          position={[a.latitude as number, a.longitude as number]}
-          icon={pinIcon}
-        >
+      {geo.map((a) => {
+        const pos = jitterPosition(
+          a.id,
+          a.latitude as number,
+          a.longitude as number
+        );
+        return (
+          <Marker
+            key={a.id}
+            position={pos}
+            icon={pinIcon}
+          >
           <Popup>
             <div className="w-44">
               <a
@@ -119,7 +149,7 @@ export default function ExploreMap({
                 {a.title}
               </a>
               <p className="text-[11px] text-[#7A6B5D]">
-                {a.era} · {a.category}
+                {a.era} · {translateOption(locale, a.category)}
               </p>
               {a.locationName && (
                 <p className="mt-0.5 truncate text-[11px] text-[#9C8E80]">
@@ -128,8 +158,9 @@ export default function ExploreMap({
               )}
             </div>
           </Popup>
-        </Marker>
-      ))}
+          </Marker>
+        );
+      })}
       <FitBounds points={points} />
     </MapContainer>
   );

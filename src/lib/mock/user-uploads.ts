@@ -34,8 +34,13 @@ export function useUserUploads(userId?: string) {
   const [error, setError] = useState<string | null>(null);
 
   // —— 1. 拉取远端「我的贡献」 ——
-  const fetchRemote = useCallback(async (): Promise<Artifact[]> => {
-    if (typeof window === "undefined") return [];
+  // 返回 { list, ok }：ok 表示 fetch 是否成功（HTTP 200）。
+  // ok=false 时（网络/HTTP 失败）调用方应回退到 localStorage 兜底。
+  const fetchRemote = useCallback(async (): Promise<{
+    list: Artifact[];
+    ok: boolean;
+  }> => {
+    if (typeof window === "undefined") return { list: [], ok: false };
     try {
       const url = userId
         ? `/api/artifacts?owner=${encodeURIComponent(userId)}`
@@ -44,18 +49,19 @@ export function useUserUploads(userId?: string) {
         cache: "no-store",
         headers: { "Cache-Control": "no-store" },
       });
-      if (!res.ok) return [];
+      if (!res.ok) return { list: [], ok: false };
       const data = (await res.json()) as ArtifactsApiResponse;
       // 仅保留拥有者匹配或本用户提交（ownerId 兜底"我的全部"）
-      return (data.artifacts ?? []).filter((a) => {
+      const list = (data.artifacts ?? []).filter((a) => {
         if (!userId) return true; // 兜底：未传 userId 时展示所有用户提交
         if (a.ownerId && a.ownerId === userId) return true;
         // 兼容：远端历史数据无 ownerId 也允许显示——保证回退展示
         if (!a.ownerId) return true;
         return false;
       });
+      return { list, ok: true };
     } catch {
-      return [];
+      return { list: [], ok: false };
     }
   }, [userId]);
 
@@ -74,12 +80,28 @@ export function useUserUploads(userId?: string) {
     }
   }, [userId]);
 
-  /** 按 id 去重合并（远端优先） */
+  /**
+   * 合并策略。
+   *
+   * **远端是唯一真相源**：只要远端成功返回了数组（哪怕为空），就以远端为准，
+   * 不再把 localStorage 里残留的、远端已删除的文物「复活」进来。
+   *
+   * 只有当远端彻底拉取失败（返回空数组且非「用户真没有数据」时）才回退到
+   * localStorage 兜底——这里用一个 `remoteOk` 标志区分：
+   * - remoteOk=true（fetch 正常返回，无论长度）→ 只用远端；
+   * - remoteOk=false（网络/HTTP 失败）→ 用本地兜底，避免离线时个人中心空白。
+   *
+   * 这样彻底修复「删除了的档案，硬刷新 / 重新登录后仍显示」的问题：
+   * 删除后远端已无该 id，本地即便残留也会在远端成功时丢弃。
+   */
   const merge = useCallback(
-    (remote: Artifact[], local: Artifact[]): Artifact[] => {
-      const ids = new Set(remote.map((a) => a.id));
-      const onlyLocal = local.filter((a) => !ids.has(a.id));
-      return [...remote, ...onlyLocal].sort(
+    (
+      remote: Artifact[],
+      local: Artifact[],
+      remoteOk: boolean
+    ): Artifact[] => {
+      const source = remoteOk ? remote : local;
+      return [...source].sort(
         (a, b) => +new Date(b.createdAt) - +new Date(a.createdAt)
       );
     },
@@ -93,16 +115,14 @@ export function useUserUploads(userId?: string) {
       setLoaded(false);
       setError(null);
       const local = loadLocal();
-      const remote = await fetchRemote();
+      const { list: remote, ok } = await fetchRemote();
       if (!active) return;
-      if (remote.length === 0) {
-        // 仅在本地种子都为空时报错；远端空但本地有视为正常
-        const total = remote.length + local.length;
-        if (total === 0) {
-          setError("未能从服务端加载到任何文物");
-        }
+      // 远端成功时以远端为准；失败时回退本地兜底（避免离线空白）
+      setUploads(merge(remote, local, ok));
+      // 仅在「远端失败 且 本地也空」时才报错提示
+      if (!ok && local.length === 0) {
+        setError("未能从服务端加载到任何文物");
       }
-      setUploads(merge(remote, local));
       setLoaded(true);
     })();
     return () => {
@@ -114,18 +134,15 @@ export function useUserUploads(userId?: string) {
   useEffect(() => {
     if (typeof window === "undefined") return;
     let cancelled = false;
-    const refetch = async () => {
+    const doRefetch = async () => {
       setRefreshing(true);
-      const remote = await fetchRemote();
+      const local = readLocalNoSeed(userId);
+      const { list: remote, ok } = await fetchRemote();
       if (cancelled) return;
-      const local =
-        typeof window !== "undefined"
-          ? readLocalNoSeed(userId)
-          : [];
-      setUploads(merge(remote, local));
+      setUploads(merge(remote, local, ok));
       setRefreshing(false);
     };
-    const onFocus = () => refetch();
+    const onFocus = () => doRefetch();
     window.addEventListener("focus", onFocus);
     return () => {
       cancelled = true;
@@ -146,9 +163,9 @@ export function useUserUploads(userId?: string) {
   // —— 手动重新拉取（提交/删除后调用） ——
   const refetch = useCallback(async () => {
     setRefreshing(true);
-    const remote = await fetchRemote();
     const local = readLocalNoSeed(userId);
-    setUploads(merge(remote, local));
+    const { list: remote, ok } = await fetchRemote();
+    setUploads(merge(remote, local, ok));
     setRefreshing(false);
   }, [fetchRemote, merge, userId]);
 
@@ -263,6 +280,23 @@ export function useUserUploads(userId?: string) {
         throw new Error(msg);
       }
       deleteUpload(id);
+      // 双保险：同步从 localStorage 兜底数据中移除该 id，
+      // 避免个人中心重新挂载时 merge(远端, 本地) 把已删文物从本地复活。
+      if (typeof window !== "undefined" && userId) {
+        try {
+          const raw = window.localStorage.getItem(keyOf(userId));
+          if (raw) {
+            const list = JSON.parse(raw) as Artifact[];
+            const next = list.filter((u) => u.id !== id);
+            window.localStorage.setItem(
+              keyOf(userId),
+              JSON.stringify(next)
+            );
+          }
+        } catch {
+          /* 忽略解析/写入失败 */
+        }
+      }
       return true;
     } catch (err) {
       if (typeof window !== "undefined") {

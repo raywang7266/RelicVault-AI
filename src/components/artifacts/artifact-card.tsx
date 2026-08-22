@@ -6,6 +6,7 @@ import type { Artifact } from "@/lib/types/artifact";
 import { statusBadgeClasses, statusLabel } from "@/lib/types/artifact";
 import SmartImage from "./smart-image";
 import { useTranslation } from "@/lib/i18n/i18n-provider";
+import { translateOption } from "@/lib/i18n/locales";
 
 interface ArtifactCardProps {
   artifact: Artifact;
@@ -33,7 +34,7 @@ export default function ArtifactCard({
   onToggleFavorite,
 }: ArtifactCardProps) {
   const router = useRouter();
-  const { t } = useTranslation();
+  const { t, locale } = useTranslation();
   const hasGeo = typeof artifact.latitude === "number" && typeof artifact.longitude === "number";
 
   return (
@@ -68,7 +69,7 @@ export default function ArtifactCard({
             {artifact.title}
           </h3>
           <p className="mt-1 text-xs text-[#7A6B5D]">
-            {artifact.era} · {artifact.category}
+            {artifact.era} · {translateOption(locale, artifact.category)}
           </p>
         </button>
 
@@ -98,7 +99,7 @@ export default function ArtifactCard({
               artifact.preservationStatus
             )}`}
           >
-            {statusLabel(artifact.preservationStatus)}
+            {translateOption(locale, statusLabel(artifact.preservationStatus))}
           </span>
 
           <div className="flex items-center gap-1.5">

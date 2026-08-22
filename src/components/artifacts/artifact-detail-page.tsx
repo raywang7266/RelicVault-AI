@@ -7,8 +7,6 @@ import { useRouter } from "next/navigation";
 import {
   Heart,
   MapPin,
-  Pencil,
-  Trash2,
   ArrowLeft,
   Navigation,
   ExternalLink,
@@ -18,11 +16,10 @@ import type { Artifact } from "@/lib/types/artifact";
 import type { CommentItem } from "@/lib/types/interactions";
 import { statusBadgeClasses, statusLabel } from "@/lib/types/artifact";
 import SmartImage from "./smart-image";
-import ArtifactEditor from "@/components/profile/artifact-editor";
 import { useToast } from "@/components/ui/toaster";
 import { useInteractions } from "@/lib/mock/interactions";
 import { useTranslation } from "@/lib/i18n/i18n-provider";
-import { LOCALE_HTML_LANG } from "@/lib/i18n/locales";
+import { LOCALE_HTML_LANG, translateOption } from "@/lib/i18n/locales";
 
 const DetailMap = dynamic(() => import("./detail-map"), {
   ssr: false,
@@ -52,8 +49,6 @@ export default function ArtifactDetailPage({ artifact, isOwner, owner }: Props) 
   const router = useRouter();
   const { toast } = useToast();
   const { t, locale } = useTranslation();
-  const [editorOpen, setEditorOpen] = useState(false);
-  const [saving, setSaving] = useState(false);
   const interactions = useInteractions();
 
   const hasGeo =
@@ -77,56 +72,6 @@ export default function ArtifactDetailPage({ artifact, isOwner, owner }: Props) 
     () => state.comments,
     [state.comments]
   );
-
-  const handleSave = async (patch: Partial<Artifact>) => {
-    setSaving(true);
-    try {
-      const res = await fetch(`/api/artifacts/${encodeURIComponent(artifact.id)}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(patch),
-      });
-      if (!res.ok) {
-        const e = (await res.json().catch(() => ({}))) as { error?: string };
-        throw new Error(e.error || t("detail.saveFailed"));
-      }
-      toast({ variant: "success", title: t("detail.saveSuccess"), description: t("detail.saveSuccessDesc") });
-      setEditorOpen(false);
-      router.refresh();
-    } catch (e) {
-      toast({
-        variant: "error",
-        title: t("detail.saveFailed"),
-        description: e instanceof Error ? e.message : t("common.retry"),
-      });
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const handleDelete = async () => {
-    if (!window.confirm(t("profile.deleteConfirm", { title: artifact.title })))
-      return;
-    setSaving(true);
-    try {
-      const res = await fetch(`/api/artifacts/${encodeURIComponent(artifact.id)}`, {
-        method: "DELETE",
-      });
-      if (!res.ok) {
-        const e = (await res.json().catch(() => ({}))) as { error?: string };
-        throw new Error(e.error || t("detail.deleteFailed"));
-      }
-      toast({ variant: "success", title: t("detail.deleteTitle"), description: t("detail.deleteDesc") });
-      router.push(isOwner ? "/profile" : "/explore");
-    } catch (e) {
-      toast({
-        variant: "error",
-        title: t("detail.deleteFailed"),
-        description: e instanceof Error ? e.message : t("common.retry"),
-      });
-      setSaving(false);
-    }
-  };
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-6">
@@ -154,7 +99,7 @@ export default function ArtifactDetailPage({ artifact, isOwner, owner }: Props) 
             {artifact.title}
           </h1>
           <p className="mt-1 text-sm text-[#7A6B5D]">
-            {artifact.era} · {artifact.category}
+            {artifact.era} · {translateOption(locale, artifact.category)}
           </p>
 
           {artifact.tags.length > 0 && (
@@ -183,7 +128,7 @@ export default function ArtifactDetailPage({ artifact, isOwner, owner }: Props) 
                     artifact.preservationStatus
                   )}`}
                 >
-                  {statusLabel(artifact.preservationStatus)}
+                  {translateOption(locale, statusLabel(artifact.preservationStatus))}
                 </span>
               </dd>
             </div>
@@ -272,27 +217,6 @@ export default function ArtifactDetailPage({ artifact, isOwner, owner }: Props) 
                 <Navigation className="h-3.5 w-3.5" /> {t("detail.openInMap")}
               </a>
             )}
-
-            {isOwner && (
-              <>
-                <button
-                  type="button"
-                  onClick={() => setEditorOpen(true)}
-                  disabled={saving}
-                  className="ml-auto inline-flex items-center gap-1.5 rounded-full border border-[#D6CBBA] px-4 py-2 text-sm font-medium text-[#5C4831] hover:bg-[#EFE6D5] disabled:opacity-60"
-                >
-                  <Pencil className="h-4 w-4" /> {t("detail.edit")}
-                </button>
-                <button
-                  type="button"
-                  onClick={handleDelete}
-                  disabled={saving}
-                  className="inline-flex items-center gap-1.5 rounded-full border border-[#EFC9C9] px-4 py-2 text-sm font-medium text-[#9B2C2C] hover:bg-[#FBEAEA] disabled:opacity-60"
-                >
-                  <Trash2 className="h-4 w-4" /> {t("detail.delete")}
-                </button>
-              </>
-            )}
           </div>
 
           {/* 评论区（真实落库） */}
@@ -356,14 +280,6 @@ export default function ArtifactDetailPage({ artifact, isOwner, owner }: Props) 
           </div>
         </div>
       </div>
-
-      <ArtifactEditor
-        open={editorOpen}
-        artifact={artifact}
-        saving={saving}
-        onSave={handleSave}
-        onClose={() => setEditorOpen(false)}
-      />
     </div>
   );
 }

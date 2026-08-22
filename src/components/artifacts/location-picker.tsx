@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { searchPlaces, reverseGeocode, type Place } from "@/lib/geocoding";
 import { useTranslation } from "@/lib/i18n/i18n-provider";
+import { localeToAcceptLanguage } from "@/lib/i18n/locales";
 
 // Leaflet 依赖 window，必须仅在客户端加载，避免 SSR 报错。
 const LocationMap = dynamic(() => import("./location-map"), {
@@ -52,7 +53,8 @@ export default function LocationPicker({
   const [geoError, setGeoError] = useState<string | null>(null);
   const [showList, setShowList] = useState(false);
 
-  const { t } = useTranslation();
+  const { t, locale } = useTranslation();
+  const acceptLanguage = localeToAcceptLanguage(locale);
   const abortRef = useRef<AbortController | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -73,7 +75,7 @@ export default function LocationPicker({
       abortRef.current = ac;
       setIsSearching(true);
       try {
-        const results = await searchPlaces(q, ac.signal);
+        const results = await searchPlaces(q, ac.signal, acceptLanguage);
         if (!ac.signal.aborted) {
           setSuggestions(results);
           setShowList(true);
@@ -114,7 +116,7 @@ export default function LocationPicker({
     setSuggestions([]);
     setGeoError(null);
     onChange?.({
-      locationName: place.displayName,
+      locationName: place.name,
       latitude: place.latitude,
       longitude: place.longitude,
     });
@@ -132,7 +134,7 @@ export default function LocationPicker({
       async (pos) => {
         const { latitude, longitude } = pos.coords;
         try {
-          const place = await reverseGeocode(latitude, longitude);
+          const place = await reverseGeocode(latitude, longitude, undefined, acceptLanguage);
           if (place) {
             setQuery(place.name);
             onChange?.({

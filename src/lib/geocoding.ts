@@ -50,10 +50,14 @@ function toPlace(r: NominatimResult): Place {
 /**
  * 前向地理编码：根据关键词模糊搜索地点（POI 联想）。
  * 仅在关键词长度 >= 2 时调用；调用方应做防抖处理。
+ *
+ * @param acceptLanguage 跟随用户当前语言（如 "zh-CN" / "zh-TW" / "en"），
+ *   用于控制返回地点的显示名称语言。
  */
 export async function searchPlaces(
   query: string,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  acceptLanguage = "zh-CN,en"
 ): Promise<Place[]> {
   const q = query.trim();
   if (q.length < 2) return [];
@@ -63,12 +67,12 @@ export async function searchPlaces(
     q,
     addressdetails: "1",
     limit: "6",
-    "accept-language": "zh-CN,en",
+    "accept-language": acceptLanguage,
   });
 
   const res = await fetch(`${NOMINATIM_BASE}/search?${params.toString()}`, {
     signal,
-    headers: { "Accept-Language": "zh-CN,en" },
+    headers: { "Accept-Language": acceptLanguage },
   });
 
   if (!res.ok) {
@@ -82,23 +86,26 @@ export async function searchPlaces(
 /**
  * 逆地理编码：根据经纬度解析出可读地址。
  * 找不到结果时返回 null（例如位于海洋 / 无人区）。
+ *
+ * @param acceptLanguage 跟随用户当前语言，控制返回地址的语言。
  */
 export async function reverseGeocode(
   lat: number,
   lng: number,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  acceptLanguage = "zh-CN,en"
 ): Promise<Place | null> {
   const params = new URLSearchParams({
     format: "json",
     lat: String(lat),
     lon: String(lng),
     addressdetails: "1",
-    "accept-language": "zh-CN,en",
+    "accept-language": acceptLanguage,
   });
 
   const res = await fetch(`${NOMINATIM_BASE}/reverse?${params.toString()}`, {
     signal,
-    headers: { "Accept-Language": "zh-CN,en" },
+    headers: { "Accept-Language": acceptLanguage },
   });
 
   if (!res.ok) {

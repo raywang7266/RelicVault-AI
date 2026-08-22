@@ -22,6 +22,7 @@ import { useProfile } from "@/lib/mock/profile";
 import { useUserUploads } from "@/lib/mock/user-uploads";
 import { useInteractions } from "@/lib/mock/interactions";
 import { useTranslation } from "@/lib/i18n/i18n-provider";
+import { translateOption } from "@/lib/i18n/locales";
 import type { Artifact } from "@/lib/types/artifact";
 import { statusBadgeClasses, statusLabel } from "@/lib/types/artifact";
 import ArtifactCard from "@/components/artifacts/artifact-card";
@@ -448,7 +449,7 @@ function UploadCard({
   onToggleFavorite: () => void;
   onDelete: () => void;
 }) {
-  const { t } = useTranslation();
+  const { t, locale } = useTranslation();
   const hasGeo =
     typeof artifact.latitude === "number" &&
     typeof artifact.longitude === "number";
@@ -481,7 +482,7 @@ function UploadCard({
             {artifact.title}
           </h3>
           <p className="mt-1 text-xs text-[#7A6B5D]">
-            {artifact.era} · {artifact.category}
+            {artifact.era} · {translateOption(locale, artifact.category)}
           </p>
         </button>
 
@@ -504,7 +505,7 @@ function UploadCard({
               artifact.preservationStatus
             )}`}
           >
-            {statusLabel(artifact.preservationStatus)}
+            {translateOption(locale, statusLabel(artifact.preservationStatus))}
           </span>
           <div className="flex items-center gap-1.5">
             <button

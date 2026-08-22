@@ -12,6 +12,7 @@ import {
   LOCALE_HTML_LANG,
   type Locale,
 } from "@/lib/i18n/locales";
+import { InteractionsProvider } from "@/lib/mock/interactions";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-sans" });
 
@@ -40,10 +41,12 @@ export default async function RootLayout({
     <html lang={LOCALE_HTML_LANG[initialLocale]} suppressHydrationWarning>
       <body className={`${inter.variable} font-sans antialiased`}>
         <I18nProvider initialLocale={initialLocale}>
-          <Toaster>
-            <Navbar initialUser={user} />
-            {children}
-          </Toaster>
+          <InteractionsProvider>
+            <Toaster>
+              <Navbar initialUser={user} />
+              {children}
+            </Toaster>
+          </InteractionsProvider>
         </I18nProvider>
       </body>
     </html>

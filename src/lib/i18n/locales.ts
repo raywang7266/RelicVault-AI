@@ -4,8 +4,9 @@
  * 仅收录「网站结构与界面」相关文案。以下类别 **不属于** 翻译范围，保持原样：
  *  - 用户上传的文物档案内容：标题 / 年代 / 门类 / 标签 / 描述 / 出土地 / 评论正文 / 作者名
  *  - 用户资料：昵称 / 个人简介
- *  - 领域分类取值（作为筛选项的值，不能翻译，否则会破坏过滤逻辑）：
- *    DYNASTY_OPTIONS / MATERIAL_OPTIONS / STATUS_OPTIONS / PreservationStatus 枚举
+ *  - 领域分类取值 **作为数据/查询 key 时** 保持原样（唐/宋/陶瓷器/完整…），
+ *    否则会破坏过滤逻辑；但 **展示层** 通过 `opt.*` 系列 key 提供三语翻译
+ *    （切换语言时筛选下拉、卡片、详情页的分类标签随之切换）。
  *  - 示例文物（SAMPLE_DATA）的标题与描述（属演示内容，保持中文原貌）
  */
 
@@ -42,6 +43,23 @@ const zhCN: Dict = {
   "common.clear": "清空",
   "common.retry": "请稍后重试",
   "common.all": "全部",
+  "common.other": "其他",
+
+  // ---------- 领域分类（展示层三语；value 仍为原始枚举）----------
+  "opt.其他": "其他",
+  "opt.唐": "唐",
+  "opt.宋": "宋",
+  "opt.元": "元",
+  "opt.明": "明",
+  "opt.清": "清",
+  "opt.陶瓷器": "陶瓷器",
+  "opt.金属器": "金属器",
+  "opt.玉石": "玉石",
+  "opt.书画": "书画",
+  "opt.织物": "织物",
+  "opt.完整": "完整",
+  "opt.微损": "微损",
+  "opt.残损": "残损",
 
   // ---------- 导航栏 ----------
   "nav.upload": "上传",
@@ -287,6 +305,23 @@ const zhTW: Dict = {
   "common.clear": "清空",
   "common.retry": "請稍後重試",
   "common.all": "全部",
+  "common.other": "其他",
+
+  // ---------- 領域分類（展示層三語；value 仍為原始列舉）----------
+  "opt.其他": "其他",
+  "opt.唐": "唐",
+  "opt.宋": "宋",
+  "opt.元": "元",
+  "opt.明": "明",
+  "opt.清": "清",
+  "opt.陶瓷器": "陶瓷器",
+  "opt.金属器": "金屬器",
+  "opt.玉石": "玉石",
+  "opt.书画": "書畫",
+  "opt.织物": "織物",
+  "opt.完整": "完整",
+  "opt.微损": "微損",
+  "opt.残损": "殘損",
 
   // ---------- 導覽列 ----------
   "nav.upload": "上傳",
@@ -532,6 +567,23 @@ const en: Dict = {
   "common.clear": "Clear",
   "common.retry": "Please try again later",
   "common.all": "All",
+  "common.other": "Other",
+
+  // ---------- Domain categories (display layer; value stays original) ----------
+  "opt.其他": "Other",
+  "opt.唐": "Tang",
+  "opt.宋": "Song",
+  "opt.元": "Yuan",
+  "opt.明": "Ming",
+  "opt.清": "Qing",
+  "opt.陶瓷器": "Ceramics",
+  "opt.金属器": "Metalwork",
+  "opt.玉石": "Jade",
+  "opt.书画": "Painting & Calligraphy",
+  "opt.织物": "Textiles",
+  "opt.完整": "Intact",
+  "opt.微损": "Minor Damage",
+  "opt.残损": "Severe Damage",
 
   // ---------- Navbar ----------
   "nav.upload": "Upload",
@@ -794,4 +846,30 @@ export function translate(
 
 export function isLocale(value: string | undefined | null): value is Locale {
   return value === "zh-CN" || value === "zh-TW" || value === "en";
+}
+
+/**
+ * 领域分类值的展示层翻译：把数据枚举值（唐/陶瓷器/完整…）映射到当前语言的
+ * 展示文案。底层 value 始终是原始枚举（保证筛选/存储逻辑不被破坏），仅在渲染
+ * 时调用本函数。找不到翻译时回退到原始值，避免空白。
+ */
+export function translateOption(locale: Locale, value: string): string {
+  if (!value) return value;
+  return translate(locale, `opt.${value}`) || value;
+}
+
+/**
+ * 将网站语言映射为 Nominatim 的 Accept-Language 请求头值，
+ * 让地点搜索 / 逆地理编码返回的地点名称跟随用户当前语言。
+ */
+export function localeToAcceptLanguage(locale: Locale): string {
+  switch (locale) {
+    case "zh-TW":
+      return "zh-TW";
+    case "en":
+      return "en";
+    case "zh-CN":
+    default:
+      return "zh-CN";
+  }
 }

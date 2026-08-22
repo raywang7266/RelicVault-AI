@@ -1,6 +1,14 @@
 "use client";
 
-import { useCallback, useMemo, useRef, useState } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import type { Artifact } from "@/lib/types/artifact";
 import type { CommentItem } from "@/lib/types/interactions";
 
@@ -34,7 +42,30 @@ const initial = (a: Artifact): InteractionState => ({
   comments: a.comments ?? [],
 });
 
-export function useInteractions() {
+const InteractionsContext = createContext<InteractionsContextValue | null>(null);
+
+interface InteractionsContextValue {
+  states: Record<string, InteractionState>;
+  seed: (artifacts: Artifact[]) => void;
+  get: (a: Artifact) => InteractionState;
+  isBusy: (id: string) => boolean;
+  toggleLike: (id: string) => Promise<void>;
+  toggleFavorite: (id: string) => Promise<void>;
+  addComment: (id: string, text: string) => Promise<boolean>;
+  deleteComment: (id: string, commentId: string) => Promise<boolean>;
+}
+
+/**
+ * 全局单例 Provider：把互动状态（点赞/收藏/评论）提升到应用根部，
+ * 使探索页缩略图、个人中心、详情页共享同一份 `states`。
+ *
+ * 这样在 A 页面（如探索页缩略图）点赞后，跳转到详情页（B 页面）时，
+ * 该文物 id 的乐观更新值已在共享 states 中，`get()` 直接命中，无需刷新。
+ *
+ * 关键：`seed` 仅「补充」尚未见过的 id，绝不覆盖已有覆盖层（已发生的
+ * 乐观更新），因此跨页跳转不会把本地已点赞状态回退成服务端旧快照。
+ */
+export function InteractionsProvider({ children }: { children: ReactNode }) {
   const [states, setStates] = useState<Record<string, InteractionState>>({});
   // 记录正在请求中的 id，避免重复点击导致计数错位
   const busy = useRef<Set<string>>(new Set());
@@ -190,7 +221,7 @@ export function useInteractions() {
 
   // 关键：返回对象用 useMemo 包裹，避免每次渲染生成全新引用。
   // 否则把该对象放进调用方的 useEffect 依赖时，会因引用变化触发无限重渲染循环。
-  return useMemo(
+  const value = useMemo<InteractionsContextValue>(
     () => ({
       states,
       seed,
@@ -203,4 +234,25 @@ export function useInteractions() {
     }),
     [states, seed, get, isBusy, toggleLike, toggleFavorite, addComment, deleteComment]
   );
+
+  return (
+    <InteractionsContext.Provider value={value}>
+      {children}
+    </InteractionsContext.Provider>
+  );
+}
+
+/**
+ * 消费全局互动状态的 hook。由于 Provider 挂在应用根部（layout），
+ * 任意页面（探索页 / 个人中心 / 详情页）拿到的是同一份 states，
+ * 因此跨页面点赞 / 收藏状态会即时同步，无需刷新。
+ */
+export function useInteractions(): InteractionsContextValue {
+  const ctx = useContext(InteractionsContext);
+  if (!ctx) {
+    throw new Error(
+      "useInteractions must be used within an <InteractionsProvider>"
+    );
+  }
+  return ctx;
 }

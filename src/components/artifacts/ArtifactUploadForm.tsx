@@ -16,6 +16,8 @@ import {
 } from "lucide-react";
 import LocationPicker, { type LocationValue } from "./location-picker";
 import { useTranslation } from "@/lib/i18n/i18n-provider";
+import { translateOption } from "@/lib/i18n/locales";
+import { DYNASTY_OPTIONS, MATERIAL_OPTIONS } from "@/lib/types/artifact";
 
 /**
  * 生成一张 SVG 占位“文物影像”，以 data URL 形式返回。
@@ -152,12 +154,14 @@ export default function ArtifactUploadForm({
   className = "",
   ownerId,
 }: ArtifactUploadFormProps) {
-  const { t } = useTranslation();
+  const { t, locale } = useTranslation();
   // Form Field States
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [title, setTitle] = useState("");
   const [era, setEra] = useState("");
+  const [eraOther, setEraOther] = useState("");
   const [category, setCategory] = useState("");
+  const [categoryOther, setCategoryOther] = useState("");
   const [preservationStatus, setPreservationStatus] =
     useState<PreservationStatus>("Intact");
   const [tags, setTags] = useState<string[]>([]);
@@ -277,8 +281,20 @@ export default function ArtifactUploadForm({
 
       // Auto-fill form fields with AI output
       if (result.title) setTitle(result.title);
-      if (result.era) setEra(result.era);
-      if (result.category) setCategory(result.category);
+      if (result.era) {
+        if (DYNASTY_OPTIONS.includes(result.era)) setEra(result.era);
+        else {
+          setEra("其他");
+          setEraOther(result.era);
+        }
+      }
+      if (result.category) {
+        if (MATERIAL_OPTIONS.includes(result.category)) setCategory(result.category);
+        else {
+          setCategory("其他");
+          setCategoryOther(result.category);
+        }
+      }
       if (result.preservationStatus) {
         setPreservationStatus(result.preservationStatus as PreservationStatus);
       }
@@ -307,8 +323,16 @@ export default function ArtifactUploadForm({
     setSampleIndex((i) => i + 1);
     setImagePreview(makeSampleImage(s.title, s.from, s.to));
     setTitle(s.title);
-    setEra(s.era);
-    setCategory(s.category);
+    if (DYNASTY_OPTIONS.includes(s.era as any)) setEra(s.era);
+    else {
+      setEra("其他");
+      setEraOther(s.era);
+    }
+    if (MATERIAL_OPTIONS.includes(s.category as any)) setCategory(s.category);
+    else {
+      setCategory("其他");
+      setCategoryOther(s.category);
+    }
     setPreservationStatus(s.preservationStatus);
     setTags(s.tags);
     setDescription(s.description);
@@ -335,8 +359,8 @@ export default function ArtifactUploadForm({
     try {
       const formData: ArtifactFormData = {
         title,
-        era,
-        category,
+        era: era === "其他" ? eraOther : era,
+        category: category === "其他" ? categoryOther : category,
         preservationStatus,
         tags,
         description,
@@ -533,13 +557,34 @@ export default function ArtifactUploadForm({
             <label className="block text-sm font-medium text-[#3E3228]">
               {t("upload.era")}
             </label>
-            <input
-              type="text"
-              placeholder={t("upload.eraPlaceholder")}
+            <select
               value={era}
-              onChange={(e) => setEra(e.target.value)}
-              className="w-full px-3.5 py-2.5 rounded-lg border border-[#D6CBBA] bg-[#FAF7F2] text-[#2C221E] focus:outline-none focus:ring-2 focus:ring-[#8C6D46]/50 focus:border-[#8C6D46] transition-all text-sm"
-            />
+              onChange={(e) => {
+                const v = e.target.value;
+                if (v === "其他") {
+                  setEra("其他");
+                } else {
+                  setEra(v);
+                  setEraOther("");
+                }
+              }}
+              className="w-full px-3.5 py-2.5 rounded-lg border border-[#D6CBBA] bg-[#FAF7F2] text-[#2C221E] focus:outline-none focus:ring-2 focus:ring-[#8C6D46]/50 focus:border-[#8C6D46] transition-all text-sm cursor-pointer"
+            >
+              {DYNASTY_OPTIONS.map((d) => (
+                <option key={d} value={d}>
+                  {translateOption(locale, d)}
+                </option>
+              ))}
+            </select>
+            {era === "其他" && (
+              <input
+                type="text"
+                placeholder={t("upload.eraPlaceholder")}
+                value={eraOther}
+                onChange={(e) => setEraOther(e.target.value)}
+                className="w-full px-3.5 py-2.5 rounded-lg border border-[#D6CBBA] bg-[#FAF7F2] text-[#2C221E] focus:outline-none focus:ring-2 focus:ring-[#8C6D46]/50 focus:border-[#8C6D46] transition-all text-sm"
+              />
+            )}
           </div>
 
           {/* Category */}
@@ -547,13 +592,34 @@ export default function ArtifactUploadForm({
             <label className="block text-sm font-medium text-[#3E3228]">
               {t("upload.category")}
             </label>
-            <input
-              type="text"
-              placeholder={t("upload.categoryPlaceholder")}
+            <select
               value={category}
-              onChange={(e) => setCategory(e.target.value)}
-              className="w-full px-3.5 py-2.5 rounded-lg border border-[#D6CBBA] bg-[#FAF7F2] text-[#2C221E] focus:outline-none focus:ring-2 focus:ring-[#8C6D46]/50 focus:border-[#8C6D46] transition-all text-sm"
-            />
+              onChange={(e) => {
+                const v = e.target.value;
+                if (v === "其他") {
+                  setCategory("其他");
+                } else {
+                  setCategory(v);
+                  setCategoryOther("");
+                }
+              }}
+              className="w-full px-3.5 py-2.5 rounded-lg border border-[#D6CBBA] bg-[#FAF7F2] text-[#2C221E] focus:outline-none focus:ring-2 focus:ring-[#8C6D46]/50 focus:border-[#8C6D46] transition-all text-sm cursor-pointer"
+            >
+              {MATERIAL_OPTIONS.map((m) => (
+                <option key={m} value={m}>
+                  {translateOption(locale, m)}
+                </option>
+              ))}
+            </select>
+            {category === "其他" && (
+              <input
+                type="text"
+                placeholder={t("upload.categoryPlaceholder")}
+                value={categoryOther}
+                onChange={(e) => setCategoryOther(e.target.value)}
+                className="w-full px-3.5 py-2.5 rounded-lg border border-[#D6CBBA] bg-[#FAF7F2] text-[#2C221E] focus:outline-none focus:ring-2 focus:ring-[#8C6D46]/50 focus:border-[#8C6D46] transition-all text-sm"
+              />
+            )}
           </div>
 
           {/* Preservation Status */}
