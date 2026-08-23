@@ -44,6 +44,67 @@ The `openai` JS SDK still appears in `package.json` because `@supabase/ssr` depe
 - **MongoDB** running locally on `mongodb://localhost:27017` (or set `MONGODB_URI` to a remote cluster)
 - A **Zhipu GLM** API key (free): https://open.bigmodel.cn → 控制台 → API Keys
 
+### Install MongoDB
+
+RelicVault needs a MongoDB instance to store users, artifacts, likes, favorites, and comments. Pick **one** of the three options below — all of them work out of the box.
+
+#### Option A — MongoDB Community Server (local install)
+
+The most common choice for local development.
+
+1. **Download** the installer for your OS from the official site:
+   - **Windows**: https://www.mongodb.com/try/download/community (pick the `.msi` installer; Windows 10/11 64-bit)
+   - **macOS**: `brew tap mongodb/brew && brew install mongodb-community` (Homebrew), or download the `.tgz` from the same page
+   - **Linux (Ubuntu/Debian)**: follow https://www.mongodb.com/docs/manual/tutorial/install-mongodb-on-ubuntu/
+2. **Run the installer** (Windows): choose "Complete" setup, and **check "Install MongoDB as a Service"** so it starts automatically on boot. Note the data directory (default `C:\Program Files\MongoDB\Server\<version>\data`).
+3. **Verify** the server is running:
+   ```bash
+   # Windows (Git Bash) / macOS / Linux
+   mongosh                          # opens the Mongo shell; type `exit` to quit
+   # or, if mongosh isn't on PATH yet:
+   mongod --version                 # prints the server version
+   ```
+   If `mongosh` connects to `mongodb://localhost:27017` without error, you're done.
+4. The default connection string is `mongodb://localhost:27017/relicvault` — which is exactly what `.env.example` ships with, so **no `.env.local` edit is needed** for a local setup.
+
+> **Tip — MongoDB Compass**: the official GUI (`https://www.mongodb.com/try/download/compass`) is bundled with the Windows installer. It's handy for browsing collections visually. Optional, but recommended.
+
+#### Option B — Docker (fastest, no system install)
+
+If you already have Docker, this is a one-liner:
+
+```bash
+# Start a MongoDB 7 container on port 27017, with a named volume for persistence
+docker run -d --name relicvault-mongo \
+  -p 27017:27017 \
+  -v relicvault-mongo-data:/data/db \
+  mongo:7
+```
+
+- It exposes `mongodb://localhost:27017` on your host, so `.env.local` needs **no changes**.
+- Data persists in the `relicvault-mongo-data` volume across container restarts.
+- Stop / start later: `docker stop relicvault-mongo` / `docker start relicvault-mongo`.
+
+#### Option C — MongoDB Atlas (cloud, free tier — no local install at all)
+
+Best if you don't want to install anything on your machine, or you're deploying to a platform like Vercel.
+
+1. Sign up at **https://www.mongodb.com/cloud/atlas/register** (free tier, no credit card).
+2. Create a **free M0 cluster** (512 MB, plenty for development).
+3. Under **Database Access**, add a database user (username + password — remember these).
+4. Under **Network Access**, click **Add IP Address → Allow access from anywhere** (`0.0.0.0/0`), or add your current IP.
+5. Click **Connect → Drivers → Node.js**, copy the connection string. It looks like:
+   ```
+   mongodb+srv://<username>:<password>@cluster0.xxxxx.mongodb.net/?retryWrites=true&w=majority
+   ```
+   Replace `<username>` / `<password>` with the ones from step 3.
+6. Paste it into `.env.local` as `MONGODB_URI`:
+   ```bash
+   MONGODB_URI=mongodb+srv://youruser:yourpass@cluster0.xxxxx.mongodb.net/relicvault?retryWrites=true&w=majority
+   ```
+
+> The app creates its collections and indexes automatically on first run — no manual schema setup is needed.
+
 ### Setup
 
 ```bash
