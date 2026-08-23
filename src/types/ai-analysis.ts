@@ -1,21 +1,29 @@
-/** Request body for POST /api/analyze-artifact (multipart form field name: "image") */
+/**
+ * POST /api/analyze-artifact 的请求与响应类型。
+ *
+ * 前端 ArtifactUploadForm.handleAIAnalyze 发送：
+ *   { image: "data:<mime>;base64,..." }
+ * 接收（response.analysis）扁平字段，直接回填表单：
+ *   { title, era, category, preservationStatus, description, tags }
+ */
+
 export interface AnalyzeArtifactRequest {
-  image: File;
+  image: string; // base64 data URL
 }
 
-/** Structured output returned by GPT-4o Vision */
+/** 识图打标结果（字段与上传表单回填一一对应） */
 export interface ArtifactVisionAnalysis {
-  suggested_title: string;
-  era_estimation: string;
+  title: string;
+  era: string;
   category: string;
-  ai_tags: string[];
-  preservation_status:
+  preservationStatus:
     | "Intact"
     | "Minor Damage"
     | "Severe Degradation"
     | "Ruin"
     | string;
-  short_description: string;
+  description: string;
+  tags: string[];
 }
 
 export interface AnalyzeArtifactResponse {

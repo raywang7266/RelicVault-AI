@@ -873,3 +873,22 @@ export function localeToAcceptLanguage(locale: Locale): string {
       return "zh-CN";
   }
 }
+
+/**
+ * 将网站语言映射为智谱 GLM 视觉分析的「输出语言」指令。
+ * 让 AI 识图打标的文本（标题 / 描述 / 标签 / 年代）跟随用户当前界面语言，
+ * 避免出现"英文界面却返回中文档案"的错位。
+ * 注意：文物门类 category 始终要求中文枚举（陶瓷器/金属器/…），
+ * 因其用于前端筛选与存储，不随语言变化；此处语言仅影响自由文本字段。
+ */
+export function localeToZhipuLanguage(locale: Locale): string {
+  switch (locale) {
+    case "zh-TW":
+      return "繁體中文";
+    case "en":
+      return "English";
+    case "zh-CN":
+    default:
+      return "简体中文";
+  }
+}

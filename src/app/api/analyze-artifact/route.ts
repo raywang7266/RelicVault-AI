@@ -1,197 +1,99 @@
 import { NextRequest, NextResponse } from "next/server";
+import { cookies } from "next/headers";
 import { z } from "zod";
 
-import { openai } from "@/lib/openai/client";
-import {
-  ACCEPTED_IMAGE_TYPES,
-  MAX_UPLOAD_SIZE_MB,
-} from "@/lib/constants";
+import { createVisionProvider, currentProviderKind } from "@/lib/vision";
+import { isLocale, localeToZhipuLanguage } from "@/lib/i18n/locales";
 import type {
   AnalyzeArtifactError,
   AnalyzeArtifactResponse,
-  ArtifactVisionAnalysis,
 } from "@/types/ai-analysis";
 
 export const runtime = "nodejs";
+export const maxDuration = 30;
 
-const MAX_BYTES = MAX_UPLOAD_SIZE_MB * 1024 * 1024;
-const FORM_FIELD = "image";
-
-const SYSTEM_PROMPT = `You are an expert archaeologist and digital heritage conservator. Analyze the uploaded image and output a JSON object with:
-{
-  "suggested_title": "Short descriptive title",
-  "era_estimation": "e.g., Tang Dynasty / 19th Century / Unknown",
-  "category": "e.g., Stone Carving, Ceramic, Architecture, Bronzeware",
-  "ai_tags": ["tag1", "tag2", "tag3"],
-  "preservation_status": "Intact / Minor Damage / Severe Degradation / Ruin",
-  "short_description": "2-3 sentences explaining the artifact's style, cultural significance, or key details."
-}`;
-
-const artifactAnalysisSchema = z.object({
-  suggested_title: z.string().min(1),
-  era_estimation: z.string().min(1),
-  category: z.string().min(1),
-  ai_tags: z.array(z.string()).min(1),
-  preservation_status: z.string().min(1),
-  short_description: z.string().min(1),
+/** 前端 ArtifactUploadForm.handleAIAnalyze 发送的是 JSON：{ image: dataURL, locale? } */
+const requestSchema = z.object({
+  image: z.string().min(1).startsWith("data:"),
+  locale: z.string().optional(),
 });
 
 function errorResponse(
   error: string,
   status: number,
-  details?: string,
+  details?: string
 ): NextResponse<AnalyzeArtifactError> {
   return NextResponse.json(
     details ? { error, details } : { error },
-    { status },
+    { status }
   );
 }
 
-function isFile(value: FormDataEntryValue | null): value is File {
-  return value instanceof File && value.size > 0;
-}
-
-async function fileToDataUrl(file: File): Promise<string> {
-  const arrayBuffer = await file.arrayBuffer();
-  const buffer = Buffer.from(arrayBuffer);
-  const base64 = buffer.toString("base64");
-  return `data:${file.type};base64,${base64}`;
-}
-
 export async function POST(
-  request: NextRequest,
+  request: NextRequest
 ): Promise<NextResponse<AnalyzeArtifactResponse | AnalyzeArtifactError>> {
-  if (!process.env.OPENAI_API_KEY) {
-    return errorResponse(
-      "OpenAI API key is not configured",
-      503,
-      "Set OPENAI_API_KEY in your environment.",
-    );
-  }
-
-  let formData: FormData;
-
   try {
-    formData = await request.formData();
-  } catch {
-    return errorResponse(
-      "Invalid request body",
-      400,
-      "Expected multipart/form-data with an image file.",
-    );
-  }
+    // 1) 解析前端 JSON 请求体
+    let body: unknown;
+    try {
+      body = await request.json();
+    } catch {
+      return errorResponse(
+        "请求体格式错误",
+        400,
+        "期望 JSON：{ \"image\": \"data:<mime>;base64,...\" }"
+      );
+    }
 
-  const entry = formData.get(FORM_FIELD);
+    const parsed = requestSchema.safeParse(body);
+    if (!parsed.success) {
+      return errorResponse(
+        "缺少图片数据",
+        400,
+        "请求需包含非空的 image（base64 data URL）。"
+      );
+    }
 
-  if (!isFile(entry)) {
-    return errorResponse(
-      "Missing image file",
-      400,
-      `Include a non-empty file in the "${FORM_FIELD}" form field.`,
-    );
-  }
+    const dataUrl = parsed.data.image;
+    const mimeMatch = dataUrl.match(/^data:([^;]+);base64,/);
+    const mimeType = mimeMatch ? mimeMatch[1] : "image/jpeg";
 
-  if (
-    !ACCEPTED_IMAGE_TYPES.includes(
-      entry.type as (typeof ACCEPTED_IMAGE_TYPES)[number],
-    )
-  ) {
-    return errorResponse(
-      "Unsupported image type",
-      400,
-      `Accepted types: ${ACCEPTED_IMAGE_TYPES.join(", ")}.`,
-    );
-  }
+    // 读取界面语言（cookie rv_locale 为权威来源），让 AI 输出跟随语言
+    const cookieLocale = cookies().get("rv_locale")?.value;
+    const locale = isLocale(cookieLocale) ? cookieLocale : "zh-CN";
+    const outputLang = localeToZhipuLanguage(locale);
 
-  if (entry.size > MAX_BYTES) {
-    return errorResponse(
-      "File too large",
-      413,
-      `Maximum upload size is ${MAX_UPLOAD_SIZE_MB} MB.`,
-    );
-  }
+    // 2) 调用视觉 provider 识图打标（默认智谱 GLM，国内直连）
+    let analysis;
+    try {
+      const provider = createVisionProvider();
+      analysis = await provider.analyzeArtifact(dataUrl, mimeType, outputLang);
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "AI 识图失败（未知错误）";
+      const providerName = currentProviderKind();
+      // 把典型错误映射成可读状态码，避免笼统的 502
+      const status = /429|quota|RESOURCE_EXHAUSTED|rate/i.test(message)
+        ? 429
+        : /404|no longer available|NOT_FOUND/i.test(message)
+          ? 404
+          : /400|INVALID_ARGUMENT|key/i.test(message)
+            ? 400
+            : 502;
+      return errorResponse(
+        `AI 识图失败（${providerName}）`,
+        status,
+        message
+      );
+    }
 
-  let dataUrl: string;
-
-  try {
-    dataUrl = await fileToDataUrl(entry);
-  } catch {
-    return errorResponse(
-      "Failed to read uploaded file",
-      400,
-      "The image could not be buffered for analysis.",
-    );
-  }
-
-  let rawContent: string | null | undefined;
-
-  try {
-    const completion = await openai.chat.completions.create({
-      model: "gpt-4o",
-      response_format: { type: "json_object" },
-      max_tokens: 1024,
-      messages: [
-        { role: "system", content: SYSTEM_PROMPT },
-        {
-          role: "user",
-          content: [
-            {
-              type: "text",
-              text: "Analyze this artifact image and return the JSON object described in your instructions.",
-            },
-            {
-              type: "image_url",
-              image_url: { url: dataUrl, detail: "high" },
-            },
-          ],
-        },
-      ],
-    });
-
-    rawContent = completion.choices[0]?.message?.content;
-  } catch (err) {
+    // 3) 返回前端期望的扁平字段（与 handleAIAnalyze 的 result.xxx 对齐）
+    const response: AnalyzeArtifactResponse = { analysis };
+    return NextResponse.json(response, { status: 200 });
+  } catch (unexpected) {
+    // 任何未预期的崩溃都返回明确的 500 + 信息，而不是裸 502
     const message =
-      err instanceof Error ? err.message : "Unknown OpenAI API error";
-
-    return errorResponse(
-      "Vision analysis failed",
-      502,
-      message,
-    );
+      unexpected instanceof Error ? unexpected.message : "未知服务端错误";
+    return errorResponse("服务端异常", 500, message);
   }
-
-  if (!rawContent) {
-    return errorResponse(
-      "Empty response from vision model",
-      502,
-      "GPT-4o returned no content.",
-    );
-  }
-
-  let parsed: unknown;
-
-  try {
-    parsed = JSON.parse(rawContent);
-  } catch {
-    return errorResponse(
-      "Invalid JSON from vision model",
-      422,
-      "The model response could not be parsed as JSON.",
-    );
-  }
-
-  const validated = artifactAnalysisSchema.safeParse(parsed);
-
-  if (!validated.success) {
-    return errorResponse(
-      "Analysis schema validation failed",
-      422,
-      validated.error.flatten().formErrors.join("; ") ||
-        "Response missing required fields.",
-    );
-  }
-
-  const analysis: ArtifactVisionAnalysis = validated.data;
-
-  return NextResponse.json({ analysis }, { status: 200 });
 }

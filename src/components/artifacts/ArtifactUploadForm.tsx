@@ -270,39 +270,64 @@ export default function ArtifactUploadForm({
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ image: imagePreview }),
+        body: JSON.stringify({ image: imagePreview, locale }),
       });
 
       if (!response.ok) {
-        throw new Error(t("upload.errAiFailed"));
+        // 透传服务端返回的可读错误（如 429 限额 / 模型不可用）
+        let serverMsg = "";
+        try {
+          const errJson = await response.json();
+          serverMsg =
+            [errJson?.details, errJson?.error].filter(Boolean).join(" — ") ||
+            "";
+        } catch {
+          /* ignore */
+        }
+        const base = t("upload.errAiFailed");
+        throw new Error(serverMsg ? `${base}：${serverMsg}` : base);
       }
 
-      const result = await response.json();
+      const data = await response.json();
+      // 后端响应是嵌套结构 { analysis: { title, era, category, ... } }
+      // 解构到 analysis 上；兼容旧扁平结构以防后端以后改回
+      const analysis = data?.analysis ?? data ?? {};
+      const resultTitle = analysis.title;
+      const resultEra = analysis.era;
+      const resultCategory = analysis.category;
+      const resultStatus = analysis.preservationStatus;
+      const resultDescription = analysis.description;
+      const resultTags: unknown = analysis.tags;
 
       // Auto-fill form fields with AI output
-      if (result.title) setTitle(result.title);
-      if (result.era) {
-        if (DYNASTY_OPTIONS.includes(result.era)) setEra(result.era);
+      if (resultTitle) setTitle(String(resultTitle));
+      if (resultEra) {
+        const eraVal = String(resultEra);
+        if (DYNASTY_OPTIONS.includes(eraVal as any)) setEra(eraVal);
         else {
           setEra("其他");
-          setEraOther(result.era);
+          setEraOther(eraVal);
         }
       }
-      if (result.category) {
-        if (MATERIAL_OPTIONS.includes(result.category)) setCategory(result.category);
+      if (resultCategory) {
+        const catVal = String(resultCategory);
+        if (MATERIAL_OPTIONS.includes(catVal as any)) setCategory(catVal);
         else {
           setCategory("其他");
-          setCategoryOther(result.category);
+          setCategoryOther(catVal);
         }
       }
-      if (result.preservationStatus) {
-        setPreservationStatus(result.preservationStatus as PreservationStatus);
+      if (resultStatus) {
+        setPreservationStatus(resultStatus as PreservationStatus);
       }
-      if (result.description) setDescription(result.description);
-      if (Array.isArray(result.tags)) {
-        // Merge AI tags with current tags, avoiding duplicates
-        const merged = Array.from(new Set([...tags, ...result.tags]));
-        setTags(merged);
+      if (resultDescription) setDescription(String(resultDescription));
+      if (Array.isArray(resultTags)) {
+        const newTags = (resultTags as unknown[]).map((x) => String(x)).filter(Boolean);
+        if (newTags.length > 0) {
+          // Merge AI tags with current tags, avoiding duplicates
+          const merged = Array.from(new Set([...tags, ...newTags]));
+          setTags(merged);
+        }
       }
 
       setAiSuccessMsg(t("upload.aiSuccessDesc"));
