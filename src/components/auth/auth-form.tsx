@@ -17,41 +17,6 @@ type ApiResult = {
   redirectTo?: string;
 };
 
-/**
- * 跳转到 /api/auth/github，由服务端 302 到 GitHub 授权页。
- * 把当前路径作为 `next` 透传，回调成功后回到用户原本想去的页面。
- */
-function GithubButton({ next }: { next: string }) {
-  const { t } = useTranslation();
-  const href = `/api/auth/github?next=${encodeURIComponent(next)}`;
-  return (
-    <a
-      href={href}
-      className="inline-flex w-full items-center justify-center gap-2 rounded-md border border-[#24292F] bg-[#24292F] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#1B1F23] focus:outline-none focus:ring-2 focus:ring-[#24292F]/40"
-    >
-      <svg
-        aria-hidden="true"
-        viewBox="0 0 24 24"
-        className="h-4 w-4 fill-current"
-      >
-        <path d="M12 .5C5.65.5.5 5.65.5 12c0 5.08 3.29 9.39 7.86 10.91.58.11.79-.25.79-.56v-2.16c-3.2.7-3.88-1.37-3.88-1.37-.52-1.32-1.27-1.67-1.27-1.67-1.04-.71.08-.7.08-.7 1.15.08 1.76 1.18 1.76 1.18 1.02 1.74 2.69 1.24 3.34.95.1-.74.4-1.24.73-1.53-2.55-.29-5.24-1.28-5.24-5.69 0-1.26.45-2.29 1.18-3.1-.12-.29-.51-1.46.11-3.05 0 0 .97-.31 3.18 1.18a11 11 0 0 1 5.79 0c2.21-1.49 3.18-1.18 3.18-1.18.62 1.59.23 2.76.11 3.05.73.81 1.18 1.84 1.18 3.1 0 4.42-2.7 5.4-5.26 5.68.41.36.78 1.06.78 2.15v3.18c0 .31.21.68.8.56C20.21 21.39 23.5 17.08 23.5 12 23.5 5.65 18.35.5 12 .5Z" />
-      </svg>
-      {t("auth.github")}
-    </a>
-  );
-}
-
-function OrDivider() {
-  const { t } = useTranslation();
-  return (
-    <div className="flex items-center gap-3 py-1 text-xs text-muted-foreground">
-      <span className="h-px flex-1 bg-border" />
-      <span>{t("auth.or")}</span>
-      <span className="h-px flex-1 bg-border" />
-    </div>
-  );
-}
-
 function SubmitButton({
   mode,
   loading,
@@ -76,15 +41,11 @@ export function AuthForm({ mode }: { mode: Mode }) {
   const { t } = useTranslation();
   const searchParams = useSearchParams();
   const redirectTo = searchParams.get("redirectTo") ?? "/explore";
-  // OAuth 错误回传（来自 /api/auth/github/callback）
-  const oauthErrorFromQuery = searchParams.get("oauthError");
   const isLogin = mode === "login";
   const endpoint = isLogin ? "/api/login" : "/api/register";
 
   const [submitting, setSubmitting] = useState(false);
-  const [serverError, setServerError] = useState<string | null>(
-    oauthErrorFromQuery
-  );
+  const [serverError, setServerError] = useState<string | null>(null);
 
   const {
     register,
@@ -243,10 +204,6 @@ export function AuthForm({ mode }: { mode: Mode }) {
       )}
 
       <SubmitButton mode={mode} loading={submitting} />
-
-      <OrDivider />
-
-      <GithubButton next={redirectTo} />
 
       <p className="text-center text-sm text-muted-foreground">
         {isLogin ? (

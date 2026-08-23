@@ -256,7 +256,7 @@ export default function ProfileView({ user }: { user: SessionUser }) {
           ) : uploads.length === 0 ? (
             <EmptyState />
           ) : (
-            <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="stagger-fade grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
               {uploads.map((a) => {
                 const it = interactions.get(a);
                 return (
@@ -295,7 +295,7 @@ export default function ProfileView({ user }: { user: SessionUser }) {
             </Link>
           </div>
         ) : (
-          <div className="columns-1 gap-5 sm:columns-2 lg:columns-3 xl:columns-4">
+          <div className="stagger-fade columns-1 gap-5 sm:columns-2 lg:columns-3 xl:columns-4">
             {favArtifacts.map((a) => {
               const it = interactions.get(a);
               return (

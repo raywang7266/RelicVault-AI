@@ -45,6 +45,24 @@ const config: Config = {
         input: "hsl(var(--input))",
         ring: "hsl(var(--ring))",
       },
+      keyframes: {
+        // 入场系列统一只用 transform，不依赖 fill-mode 把 opacity 从 0 拉到
+        // 1。这样即使运行环境（动画中断、HMR 重新挂载、multi-column）把
+        // fill-mode 剥离，元素始终是可见状态，不会出现「DOM 上有 n 个但视觉
+        // 完全空白」这类隐形 bug。
+        "fade-in-up": {
+          "0%": { transform: "translate3d(0, 12px, 0)" },
+          "100%": { transform: "translate3d(0, 0, 0)" },
+        },
+        "fade-in": {
+          "0%": { transform: "translate3d(0, 6px, 0)" },
+          "100%": { transform: "translate3d(0, 0, 0)" },
+        },
+      },
+      animation: {
+        "fade-in-up": "fade-in-up 0.5s cubic-bezier(0.22, 1, 0.36, 1) both",
+        "fade-in": "fade-in 0.6s ease-out both",
+      },
     },
   },
   plugins: [require("tailwindcss-animate")],

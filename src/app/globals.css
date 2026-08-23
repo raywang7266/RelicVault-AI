@@ -51,5 +51,217 @@
   }
   body {
     @apply bg-background text-foreground;
+    /* 锚点跳转与页内滚动更柔和，不突兀 */
+    scroll-behavior: smooth;
+  }
+}
+
+@layer utilities {
+  /* 瀑布流卡片错落入场：每卡片延迟递增，营造层次感而非花哨。
+   *
+   * 注意：不能给子元素写「静态 opacity:0 + animation-fill-mode:both」来
+   * 实现入场动画。该写法依赖 fill-mode 在动画结束时把元素拉到 100% 的
+   * 关键帧（opacity:1）。当动画被中断、运行环境剥离 fill-mode，或与
+   * CSS multi-column / break-inside-avoid 叠加时（探索页瀑布流恰好如
+   * 此），子元素会永久停在 opacity:0，DOM 上有计数但视觉看不到任何卡片
+   * —— 因此改为：opacity 始终可见到 1，仅靠 transform 入场位移；这样
+   * 即使关键帧失败，卡片仍然可见。 */
+  .stagger-fade > * {
+    --stagger-delay: 0s;
+    animation: stagger-rise 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+    animation-delay: var(--stagger-delay);
+  }
+  .stagger-fade > *:nth-child(1)  { --stagger-delay: 0.02s; }
+  .stagger-fade > *:nth-child(2)  { --stagger-delay: 0.06s; }
+  .stagger-fade > *:nth-child(3)  { --stagger-delay: 0.10s; }
+  .stagger-fade > *:nth-child(4)  { --stagger-delay: 0.14s; }
+  .stagger-fade > *:nth-child(5)  { --stagger-delay: 0.18s; }
+  .stagger-fade > *:nth-child(6)  { --stagger-delay: 0.22s; }
+  .stagger-fade > *:nth-child(7)  { --stagger-delay: 0.26s; }
+  .stagger-fade > *:nth-child(8)  { --stagger-delay: 0.30s; }
+  .stagger-fade > *:nth-child(9)  { --stagger-delay: 0.34s; }
+  .stagger-fade > *:nth-child(10) { --stagger-delay: 0.38s; }
+  .stagger-fade > *:nth-child(n + 11) { --stagger-delay: 0.42s; }
+
+  /* 卡片悬浮时的极淡光泽扫过（克制，0.4s 内完成，仅在 hover 触发） */
+  .card-sheen {
+    position: relative;
+    overflow: hidden;
+  }
+  .card-sheen::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+      115deg,
+      transparent 0%,
+      rgba(255, 255, 255, 0.35) 50%,
+      transparent 100%
+    );
+    transform: translateX(-120%);
+    transition: transform 0.6s ease;
+    pointer-events: none;
+  }
+  .card-sheen:hover::after {
+    transform: translateX(120%);
+  }
+
+  /* 可点击元素的轻微按下反馈 */
+  .pressable {
+    transition: transform 0.12s ease, box-shadow 0.2s ease;
+  }
+  .pressable:active {
+    transform: scale(0.97);
+  }
+
+  /* 点赞 / 收藏「激活」时的图标弹跳（克制：一次 0.35s 的放大回弹）。
+   * 关键：只动 transform，不改 opacity，避免出现「隐形卡片」那类 bug；
+   * 默认状态仍是静止可见的。动画关键帧定义在文件末尾（脱离 @layer），
+   * 确保一定会被编译输出。触发方式：JS 在点击时临时加上 .reaction-pop
+   * 类，动画播完（或 400ms 后）移除，因此每次点击都确定性重播。 */
+  .reaction-pop {
+    animation: reaction-pop 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+
+  /* 「+1」飘字：JS 在点击时往按钮里插入一个 <span class="reaction-fly">+1</span>，
+   * 让它从按钮中央向右上方飘起并淡出后由 JS 移除。绝对定位、不占布局。 */
+  .reaction-fly {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 12px;
+    font-weight: 700;
+    color: #C0392B;
+    pointer-events: none;
+    animation: reaction-fly 0.7s ease-out forwards;
+  }
+  .reaction-fly.fav {
+    color: #3B5B28;
+  }
+
+  /* 上传页：AI / 示例一键填充后，被写入的表单字段做一次轻微「吸气」聚焦动效，
+   * 让用户意识到「这部分是刚刚生成的内容」。只动 transform/box-shadow，不改
+   * opacity（遵循「入场动画绝不用静态 opacity:0 + fill-mode:both」的铁律）。 */
+  .field-filled {
+    animation: field-filled 0.45s ease-out both;
+  }
+  @keyframes field-filled {
+    0% {
+      transform: translateY(-2px);
+      box-shadow: 0 0 0 3px rgba(140, 109, 70, 0.18);
+    }
+    100% {
+      transform: translateY(0);
+      box-shadow: 0 0 0 0 rgba(140, 109, 70, 0);
+    }
+  }
+
+  /* 拖拽区「拽入图片」时的抬升反馈（hover/active 之上的强化态） */
+  .dropzone-active {
+    transform: translateY(-2px) scale(1.005);
+  }
+
+  /* 提交成功后的整体卡片轻微「落定」微动（克制，0.5s 一次性） */
+  .submit-settle {
+    animation: submit-settle 0.5s ease-out both;
+  }
+  @keyframes submit-settle {
+    0% {
+      transform: translateY(-4px);
+    }
+    100% {
+      transform: translateY(0);
+    }
+  }
+
+  /* 导航链接的细下划线：hover/active 时从中间向两侧展开，克制不花哨 */
+  .nav-link-underline {
+    position: relative;
+  }
+  .nav-link-underline::after {
+    content: "";
+    position: absolute;
+    left: 50%;
+    right: 50%;
+    bottom: 2px;
+    height: 2px;
+    border-radius: 2px;
+    background: currentColor;
+    opacity: 0;
+    transition: left 0.22s ease, right 0.22s ease, opacity 0.22s ease;
+  }
+  .nav-link-underline:hover::after,
+  .nav-link-underline[data-active="true"]::after {
+    left: 8px;
+    right: 8px;
+    opacity: 0.55;
+  }
+}
+
+/* 无障碍：尊重系统“减少动态效果”设置，彻底关闭入场与装饰动画 */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-delay: 0ms !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+  /* 但用户主动触发的点赞/收藏反馈动画要保留（用户明确想要），不被静音 */
+  .reaction-pop,
+  .reaction-fly {
+    animation-duration: 0.35s !important;
+    animation-delay: 0ms !important;
+  }
+  .reaction-fly {
+    animation-duration: 0.7s !important;
+  }
+}
+
+/* 自定义关键帧：错落入场。
+ *
+ * 这个关键帧只动 transform，不会把 opacity 钉在 0 上 —— 即使 animation
+ * 被中断或被运行环境剥离，子元素仍然以默认可见状态躺在瀑布流中。
+ * 这点和上面的 .stagger-fade 注释里提到的「opacity:0 + fill-mode:both」
+ * 方案的根本区别。 */
+@keyframes stagger-rise {
+  0% {
+    transform: translate3d(0, 12px, 0);
+  }
+  100% {
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+/* 点赞 / 收藏图标弹跳：只动 transform，默认可见，动画结束回到原位。 */
+@keyframes reaction-pop {
+  0% {
+    transform: scale(1);
+  }
+  40% {
+    transform: scale(1.35);
+  }
+  70% {
+    transform: scale(0.9);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+/* 「+1」飘字：从按钮中央向右上方飘起并淡出。 */
+@keyframes reaction-fly {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.6);
+  }
+  20% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-30%, -160%) scale(1);
   }
 }

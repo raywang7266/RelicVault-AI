@@ -68,8 +68,9 @@ export function Navbar({ initialUser }: { initialUser?: SessionUser | null }) {
               <li key={item.href}>
                 <Link
                   href={item.href}
+                  data-active={active}
                   className={cn(
-                    "rounded-md px-3 py-2 text-sm font-medium transition-colors",
+                    "nav-link-underline rounded-md px-3 py-2 text-sm font-medium transition-colors",
                     active
                       ? "bg-secondary text-secondary-foreground"
                       : "text-muted-foreground hover:bg-secondary/60 hover:text-foreground"

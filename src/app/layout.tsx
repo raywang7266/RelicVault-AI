@@ -23,6 +23,9 @@ export const metadata: Metadata = {
   },
   description:
     "A crowdsourced digital heritage and minor artifact museum powered by AI.",
+  icons: {
+    icon: [{ url: "/icon.svg", type: "image/svg+xml" }],
+  },
 };
 
 export default async function RootLayout({
@@ -44,7 +47,7 @@ export default async function RootLayout({
           <InteractionsProvider>
             <Toaster>
               <Navbar initialUser={user} />
-              {children}
+              <main className="animate-fade-in">{children}</main>
             </Toaster>
           </InteractionsProvider>
         </I18nProvider>

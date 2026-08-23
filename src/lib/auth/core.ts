@@ -4,7 +4,6 @@ import {
   createUser,
   findByEmail,
   hashPassword,
-  upsertGithubUser,
   verifyPassword,
 } from "@/lib/store/users";
 import { createSession, destroySession } from "./session";
@@ -27,9 +26,8 @@ export async function authenticate(
 
   const u = await findByEmail(parsed.data.email);
   if (!u) return { ok: false, error: "账号或密码不正确" };
-  // OAuth 用户没有密码，禁止走密码登录
   if (!u.password) {
-    return { ok: false, error: "该账号仅支持通过 GitHub 登录" };
+    return { ok: false, error: "账号或密码不正确" };
   }
   const ok = await verifyPassword(parsed.data.password, u.password);
   if (!ok) return { ok: false, error: "账号或密码不正确" };
@@ -83,24 +81,4 @@ export async function registerUser(
 /** 退出登录：清除会话 cookie */
 export async function signOutUser(): Promise<void> {
   await destroySession();
-}
-
-/**
- * GitHub OAuth 用户登录：upsert 本地账号（按 githubId 或 email 合并），
- * 再签发本地会话。供 GitHub 回调路由使用。
- */
-export async function signInOAuthUser(input: {
-  providerUserId: string;
-  email: string;
-  name?: string;
-  avatarUrl?: string;
-}): Promise<{ user: { id: string; email: string } }> {
-  const u = await upsertGithubUser({
-    githubId: String(input.providerUserId),
-    email: input.email,
-    displayName: input.name,
-    avatarUrl: input.avatarUrl,
-  });
-  await createSession(String(u._id));
-  return { user: { id: String(u._id), email: u.email } };
 }

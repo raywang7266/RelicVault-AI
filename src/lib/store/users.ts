@@ -62,19 +62,11 @@ export async function findByUsername(
   return User.findOne({ username }).lean() as Promise<IUser | null>;
 }
 
-export async function findByGithubId(
-  githubId: string
-): Promise<IUser | null> {
-  await connectDB();
-  return User.findOne({ githubId }).lean() as Promise<IUser | null>;
-}
-
 export interface CreateUserInput {
   email: string;
   password?: string | null;
   displayName?: string;
   username?: string;
-  githubId?: string | null;
   avatarUrl?: string;
 }
 
@@ -87,7 +79,6 @@ export async function createUser(
     password: input.password ?? null,
     displayName: input.displayName?.trim() || input.email.split("@")[0],
     username: input.username?.trim() || undefined,
-    githubId: input.githubId ?? null,
     avatarUrl: input.avatarUrl ?? "",
     role: "user",
     bio: "",
@@ -95,37 +86,6 @@ export async function createUser(
   return doc.toObject() as IUser;
 }
 
-/**
- * GitHub OAuth 用户 upsert：
- * - 优先按 githubId 匹配；其次按 email 匹配（同一邮箱用 GitHub 登录即合并账号）。
- * - 已存在则更新 displayName / avatarUrl / githubId；
- * - 不存在则新建（password 留 null，禁止走密码登录）。
- */
-export async function upsertGithubUser(input: {
-  githubId: string;
-  email: string;
-  displayName?: string;
-  avatarUrl?: string;
-}): Promise<IUser> {
-  await connectDB();
-  const lowerEmail = input.email.toLowerCase();
-  let doc = await User.findOne({ githubId: input.githubId });
-  if (!doc) doc = await User.findOne({ email: lowerEmail });
-
-  if (doc) {
-    doc.githubId = input.githubId;
-    doc.displayName = input.displayName?.trim() || doc.displayName;
-    doc.avatarUrl = input.avatarUrl ?? doc.avatarUrl;
-    await doc.save();
-    return doc.toObject() as IUser;
-  }
-  return createUser({
-    email: lowerEmail,
-    displayName: input.displayName,
-    githubId: input.githubId,
-    avatarUrl: input.avatarUrl,
-  });
-}
 
 export interface ProfilePatch {
   displayName?: string;

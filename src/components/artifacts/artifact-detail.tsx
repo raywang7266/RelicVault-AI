@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import { Heart, MapPin, X, Send, Navigation, Bookmark } from "lucide-react";
@@ -75,6 +75,29 @@ export default function ArtifactDetail({
   const [draft, setDraft] = useState("");
   const hasGeo =
     typeof artifact.latitude === "number" && typeof artifact.longitude === "number";
+
+  // 点赞 / 收藏「激活」动画：用 ref 持有图标外层包裹 <span>（普通 HTML 元素，
+  // transform 动画绝对可靠，避免 SVG 元素的 transform-origin 兼容问题）。
+  // 点击时临时加 .reaction-pop 类触发弹跳，用 onAnimationEnd 清理以便下次重播。
+  const likeWrapRef = useRef<HTMLSpanElement | null>(null);
+  const favWrapRef = useRef<HTMLSpanElement | null>(null);
+  // 「+1」飘字：点击时挂载，靠 onAnimationEnd 自动移除（不用 setTimeout 竞态）。
+  const [likeFly, setLikeFly] = useState(false);
+  const [favFly, setFavFly] = useState(false);
+
+  const pulseOnce = (
+    el: HTMLSpanElement | null,
+    setFly: (v: boolean) => void
+  ) => {
+    if (!el) return;
+    el.classList.remove("reaction-pop");
+    // 强制 reflow 以便同一 class 可重复触发
+    void el.offsetWidth;
+    el.classList.add("reaction-pop");
+    // 飘字：先确保移除再挂载，避免 React 批量更新漏掉
+    setFly(false);
+    requestAnimationFrame(() => setFly(true));
+  };
 
   // ESC 关闭
   useEffect(() => {
@@ -200,33 +223,69 @@ export default function ArtifactDetail({
               <div className="mt-4 flex items-center gap-3 border-t border-[#E6DFC6] pt-4">
                 <button
                   type="button"
-                  onClick={onToggleLike}
-                  className={`inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium transition-colors ${
+                  onClick={() => {
+                    onToggleLike();
+                    pulseOnce(likeWrapRef.current, setLikeFly);
+                  }}
+                  className={`relative inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium transition-colors ${
                     liked
                       ? "bg-[#FBEAEA] text-[#C0392B]"
                       : "bg-[#EFE6D5] text-[#6E5D4F] hover:bg-[#E2D6C1]"
                   }`}
                   aria-pressed={liked}
                 >
-                  <Heart className={`h-4 w-4 ${liked ? "fill-current" : ""}`} />
+                  <span
+                    ref={likeWrapRef}
+                    className="inline-flex"
+                    onAnimationEnd={() => {
+                      likeWrapRef.current?.classList.remove("reaction-pop");
+                      setLikeFly(false);
+                    }}
+                  >
+                    <Heart
+                      className={`h-4 w-4 ${liked ? "fill-current" : ""}`}
+                    />
+                  </span>
+                  {likeFly && (
+                    <span className="reaction-fly" aria-hidden>
+                      +1
+                    </span>
+                  )}
                   {liked ? "已赞" : "点赞"} · {likeCount}
                 </button>
                 {onToggleFavorite && (
                   <button
                     type="button"
-                    onClick={onToggleFavorite}
-                    className={`inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium transition-colors ${
-                      favorited
-                        ? "bg-[#E7F0E4] text-[#3B5B28]"
-                        : "bg-[#EFE6D5] text-[#6E5D4F] hover:bg-[#E2D6C1]"
+                  onClick={() => {
+                    onToggleFavorite();
+                    pulseOnce(favWrapRef.current, setFavFly);
+                  }}
+                  className={`relative inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium transition-colors ${
+                    favorited
+                      ? "bg-[#E7F0E4] text-[#3B5B28]"
+                      : "bg-[#EFE6D5] text-[#6E5D4F] hover:bg-[#E2D6C1]"
                     }`}
-                    aria-pressed={favorited}
+                  aria-pressed={favorited}
+                >
+                  <span
+                    ref={favWrapRef}
+                    className="inline-flex"
+                    onAnimationEnd={() => {
+                      favWrapRef.current?.classList.remove("reaction-pop");
+                      setFavFly(false);
+                    }}
                   >
                     <Bookmark
                       className={`h-4 w-4 ${favorited ? "fill-current" : ""}`}
                     />
-                    {favorited ? "已收藏" : "收藏"}
-                  </button>
+                  </span>
+                  {favFly && (
+                    <span className="reaction-fly fav" aria-hidden>
+                      +1
+                    </span>
+                  )}
+                  {favorited ? "已收藏" : "收藏"}
+                </button>
                 )}
                 {hasGeo && artifact.latitude != null && (
                   <a

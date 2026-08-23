@@ -177,6 +177,9 @@ export default function ArtifactUploadForm({
   const [aiSuccessMsg, setAiSuccessMsg] = useState<string | null>(null);
   // 示例数据按钮：循环切换的样本索引
   const [sampleIndex, setSampleIndex] = useState(0);
+  // 「填充脉冲」：每次 AI / 示例填充完成时 +1，用于驱动表单字段做一次
+  // field-filled 「吸气」动效（通过给字段套 key={...${fillPulse}} 触发重挂载）。
+  const [fillPulse, setFillPulse] = useState(0);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -331,7 +334,8 @@ export default function ArtifactUploadForm({
       }
 
       setAiSuccessMsg(t("upload.aiSuccessDesc"));
-    } catch (err: unknown) {
+      setFillPulse((n) => n + 1);
+    } catch (  err: unknown) {
       setError(
         err instanceof Error
           ? err.message
@@ -364,6 +368,7 @@ export default function ArtifactUploadForm({
     setLocation(s.location ?? null);
     setError(null);
     setAiSuccessMsg(null);
+    setFillPulse((n) => n + 1);
   };
 
   // Form Submit Handler
@@ -459,7 +464,7 @@ export default function ArtifactUploadForm({
             onClick={() => fileInputRef.current?.click()}
             className={`relative min-h-[280px] rounded-xl border-2 border-dashed transition-all cursor-pointer flex flex-col items-center justify-center p-4 bg-[#F5F0E6]/60 ${
               isDragging
-                ? "border-[#8C6D46] bg-[#EFE6D5]"
+                ? "border-[#8C6D46] bg-[#EFE6D5] dropzone-active"
                 : "border-[#D6CBBA] hover:border-[#8C6D46] hover:bg-[#F2ECE1]"
             }`}
           >
@@ -532,7 +537,7 @@ export default function ArtifactUploadForm({
             <button
               type="button"
               onClick={handleFillSample}
-              className="px-4 py-2.5 rounded-lg border border-[#8C6D46] text-[#8C6D46] hover:bg-[#EFE6D5] font-medium text-sm transition-all flex items-center justify-center gap-2 shadow-sm cursor-pointer flex-shrink-0"
+              className="px-4 py-2.5 rounded-lg border border-[#8C6D46] text-[#8C6D46] hover:bg-[#EFE6D5] font-medium text-sm transition-all flex items-center justify-center gap-2 shadow-sm cursor-pointer flex-shrink-0 pressable"
               title={t("upload.fillSample")}
             >
               <Wand2 className="w-4 h-4" />
@@ -543,7 +548,7 @@ export default function ArtifactUploadForm({
               type="button"
               onClick={handleAIAnalyze}
               disabled={isAnalyzing || !imagePreview}
-              className="px-5 py-2.5 rounded-lg bg-[#8C6D46] hover:bg-[#735836] disabled:bg-[#C2B7A7] text-white font-medium text-sm transition-all flex items-center justify-center gap-2 shadow-sm cursor-pointer disabled:cursor-not-allowed flex-shrink-0"
+              className="px-5 py-2.5 rounded-lg bg-[#8C6D46] hover:bg-[#735836] disabled:bg-[#C2B7A7] text-white font-medium text-sm transition-all flex items-center justify-center gap-2 shadow-sm cursor-pointer disabled:cursor-not-allowed flex-shrink-0 pressable"
             >
               {isAnalyzing ? (
                 <>
@@ -552,7 +557,7 @@ export default function ArtifactUploadForm({
                 </>
               ) : (
                 <>
-                  <Sparkles className="w-4 h-4" />
+                  <Sparkles className="w-4 h-4 transition-transform duration-300 group-active:rotate-12" />
                   <span>{t("upload.aiButton")}</span>
                 </>
               )}
@@ -568,12 +573,13 @@ export default function ArtifactUploadForm({
               {t("upload.name")} <span className="text-red-500">*</span>
             </label>
             <input
+              key={`title-${fillPulse}`}
               type="text"
               required
               placeholder={t("upload.namePlaceholder")}
               value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              className="w-full px-3.5 py-2.5 rounded-lg border border-[#D6CBBA] bg-[#FAF7F2] text-[#2C221E] focus:outline-none focus:ring-2 focus:ring-[#8C6D46]/50 focus:border-[#8C6D46] transition-all text-sm"
+              onChange={(e)  => setTitle(e.target.value)}
+              className="w-full px-3.5 py-2.5 rounded-lg border border-[#D6CBBA] bg-[#FAF7F2] text-[#2C221E] focus:outline-none focus:ring-2 focus:ring-[#8C6D46]/50 focus:border-[#8C6D46] transition-all text-sm field-filled"
             />
           </div>
 
@@ -583,6 +589,7 @@ export default function ArtifactUploadForm({
               {t("upload.era")}
             </label>
             <select
+              key={`era-${fillPulse}`}
               value={era}
               onChange={(e) => {
                 const v = e.target.value;
@@ -593,7 +600,7 @@ export default function ArtifactUploadForm({
                   setEraOther("");
                 }
               }}
-              className="w-full px-3.5 py-2.5 rounded-lg border border-[#D6CBBA] bg-[#FAF7F2] text-[#2C221E] focus:outline-none focus:ring-2 focus:ring-[#8C6D46]/50 focus:border-[#8C6D46] transition-all text-sm cursor-pointer"
+              className="w-full px-3.5 py-2.5 rounded-lg border border-[#D6CBBA] bg-[#FAF7F2] text-[#2C221E] focus:outline-none focus:ring-2 focus:ring-[#8C6D46]/50 focus:border-[#8C6D46] transition-all text-sm cursor-pointer field-filled"
             >
               {DYNASTY_OPTIONS.map((d) => (
                 <option key={d} value={d}>
@@ -603,11 +610,12 @@ export default function ArtifactUploadForm({
             </select>
             {era === "其他" && (
               <input
+                key={`eraOther-${fillPulse}`}
                 type="text"
                 placeholder={t("upload.eraPlaceholder")}
                 value={eraOther}
                 onChange={(e) => setEraOther(e.target.value)}
-                className="w-full px-3.5 py-2.5 rounded-lg border border-[#D6CBBA] bg-[#FAF7F2] text-[#2C221E] focus:outline-none focus:ring-2 focus:ring-[#8C6D46]/50 focus:border-[#8C6D46] transition-all text-sm"
+                className="w-full px-3.5 py-2.5 rounded-lg border border-[#D6CBBA] bg-[#FAF7F2] text-[#2C221E] focus:outline-none focus:ring-2 focus:ring-[#8C6D46]/50 focus:border-[#8C6D46] transition-all text-sm field-filled"
               />
             )}
           </div>
@@ -618,6 +626,7 @@ export default function ArtifactUploadForm({
               {t("upload.category")}
             </label>
             <select
+              key={`category-${fillPulse}`}
               value={category}
               onChange={(e) => {
                 const v = e.target.value;
@@ -628,7 +637,7 @@ export default function ArtifactUploadForm({
                   setCategoryOther("");
                 }
               }}
-              className="w-full px-3.5 py-2.5 rounded-lg border border-[#D6CBBA] bg-[#FAF7F2] text-[#2C221E] focus:outline-none focus:ring-2 focus:ring-[#8C6D46]/50 focus:border-[#8C6D46] transition-all text-sm cursor-pointer"
+              className="w-full px-3.5 py-2.5 rounded-lg border border-[#D6CBBA] bg-[#FAF7F2] text-[#2C221E] focus:outline-none focus:ring-2 focus:ring-[#8C6D46]/50 focus:border-[#8C6D46] transition-all text-sm cursor-pointer field-filled"
             >
               {MATERIAL_OPTIONS.map((m) => (
                 <option key={m} value={m}>
@@ -638,11 +647,12 @@ export default function ArtifactUploadForm({
             </select>
             {category === "其他" && (
               <input
+                key={`categoryOther-${fillPulse}`}
                 type="text"
                 placeholder={t("upload.categoryPlaceholder")}
                 value={categoryOther}
                 onChange={(e) => setCategoryOther(e.target.value)}
-                className="w-full px-3.5 py-2.5 rounded-lg border border-[#D6CBBA] bg-[#FAF7F2] text-[#2C221E] focus:outline-none focus:ring-2 focus:ring-[#8C6D46]/50 focus:border-[#8C6D46] transition-all text-sm"
+                className="w-full px-3.5 py-2.5 rounded-lg border border-[#D6CBBA] bg-[#FAF7F2] text-[#2C221E] focus:outline-none focus:ring-2 focus:ring-[#8C6D46]/50 focus:border-[#8C6D46] transition-all text-sm field-filled"
               />
             )}
           </div>
@@ -653,11 +663,12 @@ export default function ArtifactUploadForm({
               {t("upload.preservation")}
             </label>
             <select
+              key={`status-${fillPulse}`}
               value={preservationStatus}
               onChange={(e) =>
                 setPreservationStatus(e.target.value as PreservationStatus)
               }
-              className="w-full px-3.5 py-2.5 rounded-lg border border-[#D6CBBA] bg-[#FAF7F2] text-[#2C221E] focus:outline-none focus:ring-2 focus:ring-[#8C6D46]/50 focus:border-[#8C6D46] transition-all text-sm cursor-pointer"
+              className="w-full px-3.5 py-2.5 rounded-lg border border-[#D6CBBA] bg-[#FAF7F2] text-[#2C221E] focus:outline-none focus:ring-2 focus:ring-[#8C6D46]/50 focus:border-[#8C6D46] transition-all text-sm cursor-pointer field-filled"
             >
               {PRESERVATION_OPTIONS.map((opt) => (
                 <option key={opt.value} value={opt.value}>
@@ -673,7 +684,7 @@ export default function ArtifactUploadForm({
           <label className="block text-sm font-medium text-[#3E3228]">
             {t("upload.tags")}
           </label>
-          <div className="flex flex-wrap items-center gap-2 p-3.5 rounded-lg border border-[#D6CBBA] bg-[#F5F0E6]/40 min-h-[56px]">
+          <div key={`tags-${fillPulse}`} className="flex flex-wrap items-center gap-2 p-3.5 rounded-lg border border-[#D6CBBA] bg-[#F5F0E6]/40 min-h-[56px] field-filled">
             {tags.length === 0 && (
               <span className="text-xs text-[#9C8E80] italic">
                 {t("upload.noTags")}
@@ -723,11 +734,12 @@ export default function ArtifactUploadForm({
             {t("upload.description")}
           </label>
           <textarea
+            key={`desc-${fillPulse}`}
             rows={4}
             placeholder={t("upload.descriptionPlaceholder")}
             value={description}
             onChange={(e) => setDescription(e.target.value)}
-            className="w-full px-3.5 py-2.5 rounded-lg border border-[#D6CBBA] bg-[#FAF7F2] text-[#2C221E] focus:outline-none focus:ring-2 focus:ring-[#8C6D46]/50 focus:border-[#8C6D46] transition-all text-sm resize-y leading-relaxed"
+            className="w-full px-3.5 py-2.5 rounded-lg border border-[#D6CBBA] bg-[#FAF7F2] text-[#2C221E] focus:outline-none focus:ring-2 focus:ring-[#8C6D46]/50 focus:border-[#8C6D46] transition-all text-sm resize-y leading-relaxed field-filled"
           />
         </div>
 
@@ -739,7 +751,7 @@ export default function ArtifactUploadForm({
           <button
             type="submit"
             disabled={isSubmitting}
-            className="px-6 py-2.5 rounded-lg bg-[#2C221E] hover:bg-[#42332D] disabled:bg-[#8C827A] text-[#FAF7F2] font-medium text-sm transition-all flex items-center gap-2 shadow-sm cursor-pointer disabled:cursor-not-allowed"
+            className="px-6 py-2.5 rounded-lg bg-[#2C221E] hover:bg-[#42332D] disabled:bg-[#8C827A] text-[#FAF7F2] font-medium text-sm transition-all flex items-center gap-2 shadow-sm cursor-pointer disabled:cursor-not-allowed pressable"
           >
             {isSubmitting ? (
               <>

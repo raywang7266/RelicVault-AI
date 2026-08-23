@@ -39,7 +39,7 @@ export default function ArtifactCard({
 
   return (
     <div
-      className="group mb-5 break-inside-avoid overflow-hidden rounded-xl border border-[#E6DFC6] bg-white shadow-sm transition-all hover:shadow-md hover:border-[#D6CBBA]"
+      className="card-sheen group mb-5 break-inside-avoid overflow-hidden rounded-xl border border-[#E6DFC6] bg-white shadow-sm transition-all duration-300 hover:shadow-md hover:border-[#D6CBBA]"
     >
       {/* 缩略图（可点击打开详情） */}
       <button
@@ -84,7 +84,7 @@ export default function ArtifactCard({
                   e.stopPropagation();
                   router.push(`/explore?tag=${encodeURIComponent(t)}`);
                 }}
-                className="rounded-full bg-[#F2ECE1] px-2 py-0.5 text-[11px] text-[#6E5D4F] transition-colors hover:bg-[#E2D6C1] hover:text-[#8C6D46]"
+                className="pressable rounded-full bg-[#F2ECE1] px-2 py-0.5 text-[11px] text-[#6E5D4F] transition-colors hover:bg-[#E2D6C1] hover:text-[#8C6D46]"
               >
                 #{t}
               </button>
@@ -109,7 +109,7 @@ export default function ArtifactCard({
                 e.stopPropagation();
                 onToggleLike();
               }}
-              className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[12px] font-medium transition-colors ${
+              className={`pressable inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[12px] font-medium transition-colors ${
                 liked
                   ? "bg-[#FBEAEA] text-[#C0392B]"
                   : "bg-[#F5F0E6] text-[#8C7E72] hover:bg-[#EFE6D5]"
@@ -127,7 +127,7 @@ export default function ArtifactCard({
                   e.stopPropagation();
                   onToggleFavorite();
                 }}
-                className={`inline-flex items-center rounded-full px-2 py-0.5 text-[12px] font-medium transition-colors ${
+                className={`pressable inline-flex items-center rounded-full px-2 py-0.5 text-[12px] font-medium transition-colors ${
                   favorited
                     ? "bg-[#E7F0E4] text-[#3B5B28]"
                     : "bg-[#F5F0E6] text-[#8C7E72] hover:bg-[#EFE6D5]"

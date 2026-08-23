@@ -276,7 +276,7 @@ export default function ExploreGrid({ initialTag }: { initialTag?: string }) {
       ) : view === "map" ? (
         <ExploreMap artifacts={results} />
       ) : (
-        <div className="columns-1 gap-5 sm:columns-2 lg:columns-3 xl:columns-4">
+        <div className="stagger-fade columns-1 gap-5 sm:columns-2 lg:columns-3 xl:columns-4">
           {results.map((a) => {
             const it = interactions.get(a);
             return (

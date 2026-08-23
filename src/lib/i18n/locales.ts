@@ -82,8 +82,6 @@ const zhCN: Dict = {
   "register.subtitle": "创建账号，开始记录你的藏品",
 
   // ---------- 认证表单 ----------
-  "auth.github": "使用 GitHub 登录",
-  "auth.or": "或",
   "auth.processing": "处理中…",
   "auth.login": "登录",
   "auth.register": "注册",
@@ -344,8 +342,6 @@ const zhTW: Dict = {
   "register.subtitle": "建立帳號，開始記錄你的藏品",
 
   // ---------- 認證表單 ----------
-  "auth.github": "使用 GitHub 登入",
-  "auth.or": "或",
   "auth.processing": "處理中…",
   "auth.login": "登入",
   "auth.register": "註冊",
@@ -606,8 +602,6 @@ const en: Dict = {
   "register.subtitle": "Create an account to start recording your collection",
 
   // ---------- Auth form ----------
-  "auth.github": "Sign in with GitHub",
-  "auth.or": "or",
   "auth.processing": "Processing…",
   "auth.login": "Log in",
   "auth.register": "Sign up",

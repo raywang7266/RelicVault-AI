@@ -38,3 +38,8 @@ supabase/.temp
 # mongodb
 .mongodb-data/
 *.lock
+
+# 忽略所有视频文件和会议录屏目录
+*.mp4
+*.wemtv
+*王一然的快速会议*
