@@ -50,6 +50,7 @@ BLUE    = HexColor("#3F6E8C")  # what worked
 DARK_BL = HexColor("#2A4D69")  # AI coding tools
 TEAL    = HexColor("#3F8A7B")  # system prompts
 PURPLE  = HexColor("#7A4E83")  # models+APIs
+ZHIPU   = HexColor("#1F7A5E")  # 智谱 GLM (vision provider)
 
 # ---------- styles ----------
 SS = getSampleStyleSheet()
@@ -217,7 +218,7 @@ class ArchitectureFlow(Flowable):
         nodes = [
             ("User photo",        CHIP_BG),
             ("Upload form",       CHIP_BG),
-            ("OpenAI Vision\n+ Nominatim", PURPLE),
+            ("Zhipu GLM\n+ Nominatim", ZHIPU),
             ("MongoDB",           GREEN),
             ("Explore /\nProfile",  BLUE),
         ]
@@ -315,6 +316,97 @@ class AIBars(Flowable):
 class AIDonut(AIBars):
     pass
 
+
+class AIRoleFlow(Flowable):
+    """A small horizontal 'AI touch-point' diagram for the Use-of-AI block.
+
+    It shows, end to end, WHERE AI is applied in the product pipeline:
+        Photo upload  →  [OpenAI Vision]  →  Structured record
+                      →  [Nominatim]       →  Map pin
+    Each AI step is a coloured rounded box with a one-word role label, and a
+    short caption beneath explains the two model calls. This is self-
+    explaining: the coloured boxes are exactly the AI, the grey boxes are the
+    plain data, and the arrows show order. Replaces the old percentage bars,
+    which had no clear meaning.
+    """
+    BOX_H = 22
+    ARROW_W = 12
+    CAP_Y = 0  # caption sits below the boxes
+
+    def __init__(self, total_w):
+        super().__init__()
+        self.total_w = total_w
+        # 5 nodes: Upload(grey), Vision(ai), Record(grey), Geocode(ai), Pin(grey)
+        # widths as fractions of (total - arrows)
+        fracs = [0.20, 0.22, 0.20, 0.18, 0.20]
+        arrow_total = self.ARROW_W * 4
+        avail = total_w - arrow_total
+        self.box_w = [avail * f for f in fracs]
+        self.h = self.BOX_H + 22  # boxes + caption row
+
+    def _box(self, x, y, w, h, label, fill, fg):
+        c = self.canv
+        c.setFillColor(fill)
+        c.setStrokeColor(INK if fill in (CHIP_BG, PILL_BG) else fill)
+        c.setLineWidth(0.4)
+        c.roundRect(x, y, w, h, 5, stroke=1, fill=1)
+        c.setFillColor(fg)
+        c.setFont("Helvetica-Bold", 10)
+        c.drawCentredString(x + w / 2, y + h / 2 - 3.5, label)
+
+    def _arrow(self, x, y, w, h):
+        c = self.canv
+        c.setStrokeColor(MUTED)
+        c.setLineWidth(0.8)
+        c.line(x + 2, y + h / 2, x + w - 4, y + h / 2)
+        p = c.beginPath()
+        p.moveTo(x + w - 4, y + h / 2)
+        p.lineTo(x + w - 9, y + h / 2 + 4)
+        p.lineTo(x + w - 9, y + h / 2 - 4)
+        p.close()
+        c.drawPath(p, stroke=0, fill=1)
+
+    def wrap(self, avail_w, avail_h):
+        return self.total_w, self.h
+
+    def split(self, avail_w, avail_h):
+        return []
+
+    def draw(self):
+        c = self.canv
+        y = 16
+        nodes = [
+            ("Photo",       CHIP_BG,  INK),     # grey data
+            ("Zhipu\nGLM",  ZHIPU,    white),   # AI vision provider
+            ("Record",      CHIP_BG,  INK),     # grey data
+            ("Nominatim",   TEAL,    white),    # AI
+            ("Map pin",     CHIP_BG,  INK),     # grey data
+        ]
+        x = 0
+        for idx, (label, fill, fg) in enumerate(nodes):
+            w_box = self.box_w[idx]
+            if "\n" in label:
+                c.setFillColor(fill)
+                c.setStrokeColor(fill)
+                c.setLineWidth(0.4)
+                c.roundRect(x, y, w_box, self.BOX_H, 5, stroke=1, fill=1)
+                c.setFillColor(fg)
+                c.setFont("Helvetica-Bold", 10)
+                c.drawCentredString(x + w_box / 2, y + self.BOX_H - 9, label.split("\n")[0])
+                c.drawCentredString(x + w_box / 2, y + self.BOX_H - 20, label.split("\n")[1])
+            else:
+                self._box(x, y, w_box, self.BOX_H, label, fill, fg)
+            x += w_box
+            if idx < 4:
+                self._arrow(x, y, self.ARROW_W, self.BOX_H)
+                x += self.ARROW_W
+        # caption
+        c.setFillColor(MUTED)
+        c.setFont("Helvetica-Oblique", 10)
+        c.drawString(0, 1,
+            "Green = Zhipu GLM glm-4v-flash (photo \u2192 structured record). "
+            "Teal = OpenStreetMap Nominatim (place name \u2192 map pin).")
+
 # ---------- content ----------
 PAGE_W, PAGE_H = LETTER
 LM = RM = 0.55 * inch
@@ -332,28 +424,15 @@ def build_header():
     f.append(P("RelicVault AI — Project Write-up Summary", title_style))
     f.append(P(
         "A crowdsourced digital heritage &amp; minor-artifact museum · "
-        "Next.js 14 · MongoDB · OpenAI Vision · OpenStreetMap · 3-language UI",
+        "Next.js 14 · MongoDB · Zhipu GLM glm-4v-flash · OpenStreetMap · 3-language UI",
         tagline_style,
     ))
+    f.append(P(
+        "<font color='#6F5E50'>Source:</font> "
+        "<font color='#2A4D69'><b>https://github.com/raywang7266/RelicVault-AI/tree/main</b></font>",
+        ParagraphStyle("gh", parent=tagline_style, fontSize=10, leading=13, spaceAfter=4),
+    ))
     f.append(HR(USABLE_W, color=ACCENT, thickness=1.2))
-    f.append(Spacer(1, 4))
-    # Stat pills row — laid out in a Table whose column widths are computed
-    # exactly from each Pill's measured width, so they sit on one row.
-    pills = [Pill("1 person"), Pill("1 summer"),
-             Pill("Full-stack · AI-powered"),
-             Pill("Multi-language"), Pill("Privacy-by-default")]
-    widths = [p._w + 2 for p in pills]
-    pill_row = Table(
-        [pills], colWidths=widths,
-        style=TableStyle([
-            ("LEFTPADDING", (0, 0), (-1, -1), 0),
-            ("RIGHTPADDING", (0, 0), (-1, -1), 4),
-            ("TOPPADDING", (0, 0), (-1, -1), 0),
-            ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
-            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-        ]),
-    )
-    f.append(pill_row)
     return f
 
 
@@ -381,11 +460,13 @@ def build_left_column():
         "<b>RelicVault AI</b> is a full-stack web app. Users sign "
         "up, drop a photo of an artifact plus a map pin, and "
         "instantly get a structured record (name, dynasty, "
-        "category, material, preservation, tags) from a vision "
-        "LLM. Explore offers fuzzy search, "
+        "category, material, preservation, tags) from "
+        "<font color='#1F7A5E'><b>Zhipu GLM glm-4v-flash</b></font>. "
+        "Explore offers fuzzy search, "
         "<font color='#A86B36'>#tag</font> search, era / material / "
         "preservation filters, and a grid-or-map toggle. Coordinates "
-        "blur to two decimals before storage.",
+        "blur to two decimals before storage, and protected "
+        "sites are rounded to one decimal place.",
         body_style,
     ))
     return f
@@ -400,45 +481,51 @@ def build_architecture_row(width):
 
 
 def build_right_column():
-    """Returns flowables for the right column — short intro + 3 bullets + donut."""
+    """Returns flowables for the right column — short intro + 3 bullets +
+    the AI touch-point diagram."""
     f = []
     f.append(P("Use of AI", h2_style))
     f.append(P(
-        "AI played three roles this summer. The breakdown is in "
-        "the bars below; the details live in the Reflections strip.",
+        "AI is used in two concrete places in the product pipeline "
+        "(see the flow below), plus as a coding partner throughout "
+        "development. Details live in the Reflections strip.",
         body_style,
     ))
     f.append(P(
-        "<font color='#2A4D69'><b>1 · Coding agent (WorkBuddy).</b></font> "
-        "scaffolds, refactors, CSS-animation debugging.",
+        "<font color='#1F7A5E'><b>1 · Vision provider (Zhipu GLM).</b></font> "
+        "a photo becomes a structured record (name, dynasty, "
+        "material, preservation, tags) via a strict JSON prompt. "
+        "Default model <b>glm-4v-flash</b> (free, China-direct, OpenAI-compatible API).",
         body_style,
     ))
     f.append(P(
-        "<font color='#3F8A7B'><b>2 · System prompts.</b></font> "
-        "strict JSON schema + <i>'say unknown'</i> + bilingual reasoning.",
+        "<font color='#3F8A7B'><b>2 · Geocoder.</b></font> "
+        "a typed place name is resolved to coordinates with "
+        "OpenStreetMap Nominatim — free and keyless.",
         body_style,
     ))
     f.append(P(
-        "<font color='#7A4E83'><b>3 · Models &amp; APIs.</b></font> "
-        "OpenAI vision, OpenStreetMap Nominatim, Leaflet.",
+        "<font color='#2A4D69'><b>3 · Coding agent.</b></font> "
+        "WorkBuddy scaffolds, refactors, and debugs the app "
+        "end-to-end.",
         body_style,
     ))
 
-    # Donut/bars below the bullets — visualises the three AI roles.
-    f.append(Spacer(1, 1))
-    bars = AIBars(w=COL_W - 8, h=68)
-    bars_table = Table(
-        [[bars]],
+    # AI touch-point diagram below the bullets.
+    f.append(Spacer(1, 2))
+    air = AIRoleFlow(COL_W - 4)
+    air_table = Table(
+        [[air]],
         colWidths=[COL_W],
     )
-    bars_table.setStyle(TableStyle([
+    air_table.setStyle(TableStyle([
         ("VALIGN", (0, 0), (-1, -1), "TOP"),
         ("LEFTPADDING", (0, 0), (-1, -1), 0),
         ("RIGHTPADDING", (0, 0), (-1, -1), 0),
         ("TOPPADDING", (0, 0), (-1, -1), 0),
         ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
     ]))
-    f.append(bars_table)
+    f.append(air_table)
     return f
 
 
@@ -466,8 +553,9 @@ def build_bottom_reflections(width):
             micro_body,
         ),
         P(
-            "• Small dependency surface: one LLM, one geocoder, "
-            "one map library, one database.",
+            "• Picked a provider that ships: Zhipu GLM's "
+            "<b>glm-4v-flash</b> is free and China-direct, so "
+            "demo builds never hit a quota wall.",
             micro_body,
         ),
     ]

@@ -1,377 +1,258 @@
 # RelicVault AI
 
-A crowdsourced digital heritage and minor artifact museum powered by AI. Contributors submit photos of artifacts with tags and GPS coordinates; OpenAI enriches submissions with `ai_tags`; Supabase stores users, artifacts, and media. Exact coordinates are never exposed to non-admin users — the database auto-computes blurred coordinates to protect unprotected heritage sites.
+> A crowdsourced digital heritage & minor-artifact museum. Upload a photo, drop a pin, and a vision model turns it into a structured archive entry in under a minute.
+
+If the Louvre gets the masterpieces, **RelicVault gets everything else** — village heirlooms, family keepsakes, flea-market finds, the cultural artifacts that are under-protected or already forgotten.
+
+**Stack:** Next.js 14 (App Router) · TypeScript · MongoDB / Mongoose · Zhipu GLM `glm-4v-flash` (vision) · OpenStreetMap Nominatim + Leaflet (geocoding & maps) · Tailwind + shadcn/ui · 3-language UI (zh-CN / zh-TW / en).
+
+---
+
+## Highlights
+
+- **Photo → structured record in one click.** Upload an image; the form is auto-filled with title, dynasty / era, category, material, preservation status, and short tags — all from a strict JSON-prompt vision call.
+- **Privacy-by-default geocoding.** Coordinates entered on the map are auto-blurred before storage: 2 decimals (~±550 m) for ordinary finds, 1 decimal (~±5.5 km) for protected sites. Exact coordinates never leave the server.
+- **Searchable, filterable Explore page.** Fuzzy title search, `#tag` search, era / category / preservation-status filters, and a grid-or-map toggle. Likes, favorites, and comments are first-class on each artifact.
+- **Personal profile & contributions.** Stats dashboard, editable profile card, full CRUD on every artifact you uploaded.
+- **Three languages, one UI.** Simplified Chinese, Traditional Chinese, and English — driven by the `rv_locale` cookie. The vision model also returns results in the user's language when you ask it to.
 
 ---
 
 ## Tech Stack
 
-| Layer | Technology |
-|-------|------------|
-| Framework | [Next.js 14](https://nextjs.org/) (App Router) |
-| Language | TypeScript |
-| Styling | Tailwind CSS + [shadcn/ui](https://ui.shadcn.com/) (Radix UI) |
-| Database & Auth | [Supabase](https://supabase.com/) (PostgreSQL, RLS, Storage) |
-| AI | [OpenAI API](https://platform.openai.com/) |
-| Validation | Zod + React Hook Form |
-| Icons | Lucide React |
+| Layer | Choice |
+|-------|--------|
+| Framework | Next.js 14.2 (App Router, Node runtime, edge-safe route handlers) |
+| Language | TypeScript 5.7 (strict) |
+| Database | MongoDB via Mongoose 9 (single source of truth for users, artifacts, likes, favorites, comments) |
+| Auth | Email + password, bcrypt hashes, **JWT session cookies** (`rv_session`, `jose` HS256, 7-day expiry, `httpOnly` + `sameSite=lax`) |
+| Vision provider | [Zhipu GLM](https://open.bigmodel.cn) `glm-4v-flash` — OpenAI-compatible Chat Completions, China-direct, free tier, JSON-mode output. Pluggable via `AI_PROVIDER` env (`zhipu` default, `siliconflow` reserved, `gemini` deprecated) |
+| Geocoding | [OpenStreetMap Nominatim](https://nominatim.openstreetmap.org/) — keyless, free |
+| Maps | Leaflet 1.9 + react-leaflet 4.2, OSM tiles |
+| UI | Tailwind 3 + shadcn/ui (Radix UI primitives), `lucide-react` icons, Radix Toast for notifications |
+| Validation | Zod 3 + React Hook Form 7 |
+| Tests | Vitest 4 |
+
+The `openai` JS SDK still appears in `package.json` because `@supabase/ssr` depends on it transitively, but **no application code calls OpenAI**. The visual pipeline goes through `src/lib/vision/zhipu.ts`.
 
 ---
 
-## Project Directory Structure
+## Quick start
+
+### Prerequisites
+- **Node.js** ≥ 18.17 (project tested on 22.x)
+- **MongoDB** running locally on `mongodb://localhost:27017` (or set `MONGODB_URI` to a remote cluster)
+- A **Zhipu GLM** API key (free): https://open.bigmodel.cn → 控制台 → API Keys
+
+### Setup
+
+```bash
+git clone https://github.com/raywang7266/RelicVault-AI.git
+cd RelicVault-AI
+npm install
+cp .env.example .env.local        # then edit .env.local (see below)
+npm run dev
+```
+
+Open http://localhost:3000 and sign up. The first account can immediately start uploading artifacts.
+
+### Seed demo data (optional)
+
+`scripts/seed-artifacts-mongo.js` inserts ~12 sample artifacts into your local Mongo and prints credentials for a demo `curator` account.
+
+```bash
+node scripts/seed-artifacts-mongo.js
+```
+
+The script is **idempotent**: it skips artifacts that the `curator` user already owns.
+
+### Scripts
+
+| Command | What it does |
+|---------|--------------|
+| `npm run dev` | Start the Next.js dev server |
+| `npm run build` | Production build |
+| `npm run start` | Run the production build |
+| `npm run lint` | ESLint (next/core-web-vitals) |
+| `npm run typecheck` | `tsc --noEmit` strict check |
+
+---
+
+## Environment variables
+
+Copy `.env.example` → `.env.local` and fill in:
+
+| Var | Required? | Purpose |
+|-----|-----------|---------|
+| `MONGODB_URI` | **Yes** | MongoDB connection string (e.g. `mongodb://localhost:27017/relicvault`) |
+| `SESSION_SECRET` | **Yes** | HMAC-SHA256 secret used to sign the session JWT (any random string ≥ 32 chars) |
+| `AI_PROVIDER` | optional, default `zhipu` | Pick the vision provider: `zhipu` (default) / `siliconflow` (reserved) / `gemini` (deprecated) |
+| `ZHIPU_API_KEY` | required when `AI_PROVIDER=zhipu` | API key from open.bigmodel.cn |
+| `ZHIPU_MODEL` | optional, default `glm-4v-flash` | Override the model id |
+| `NEXT_PUBLIC_APP_URL` | optional, default `http://localhost:3000` | Used for canonical links & share URLs |
+| `SILICONFLOW_API_KEY` | reserved | Only needed if you implement that provider |
+| `GEMINI_API_KEY` | reserved | Gemini is **disabled** (Google services are unreachable from the deployment region) |
+
+Legacy Supabase and OpenAI keys can stay in `.env.local` for reference — they are no longer consulted by any code path.
+
+---
+
+## How it works
+
+### 1 · Sign up & sign in
+- Email + password → `bcryptjs` hash → user row in Mongo `users` collection.
+- On success, `signSession(userId)` returns a JWT signed with `SESSION_SECRET` (HS256, 7-day expiry). The browser stores it as the `rv_session` cookie: `httpOnly`, `sameSite=lax`, `secure` in production. The client never sees the token.
+
+### 2 · Submit an artifact (`/artifacts/new`)
+- The user picks a photo, types/edits an era, category, preservation status, description, manual tags, optionally types a place name or drops a pin on the OSM map.
+- Clicking **AI analyze** sends a `data:` URL of the photo + the current UI locale to `POST /api/analyze-artifact`.
+- That route calls `createVisionProvider().analyzeArtifact(...)` (Zhipu GLM `glm-4v-flash`) with a strict system prompt that:
+  - outputs exactly one JSON object — no prose, no markdown;
+  - pins `category` to one of six fixed Chinese terms (so the Explore filter is stable);
+  - pins `preservationStatus` to one of four English enums;
+  - fills unclear fields with the current-language word for **"unknown"** instead of guessing;
+  - tells the model which UI language to use for `title` / `era` / `description` / `tags`.
+- The form auto-fills from the JSON, the user reviews, and submits.
+
+### 3 · Persist & publish (`POST /api/artifacts`)
+- Server-side zod validation + 5 req / 60s rate limit per IP.
+- The artifact row is written with the **exact** coordinates; a Mongoose `pre('save')` hook computes `blurredLat` / `blurredLng` automatically (2 decimals normal, 1 decimal if `isProtected`).
+- The Explore page never receives exact coordinates.
+
+### 4 · Browse, like, comment (`/explore`, `/artifacts/[id]`)
+- One `GET /api/artifacts` request with `q`, `tag`, `dynasty`, `material`, `status`, `limit` params — the server applies them in Mongo and returns the matches.
+- Likes, favorites, and comments live on the artifact document itself, so a single read serves the whole detail view.
+
+### 5 · Profile (`/profile`)
+- `getServerUser()` server-side guard.
+- Stats (uploads, total likes received, days joined), editable profile card, and a "My Contributions" grid with edit/delete.
+
+---
+
+## Architecture at a glance
+
+```
+┌──────────┐    ┌────────────┐    ┌─────────────────────┐    ┌──────────┐    ┌───────────────┐
+│  Photo   │ →  │ Upload form│ →  │ Zhipu GLM glm-4v-   │ →  │  Mongo   │ →  │ Explore /     │
+│  (data:  │    │ (Leaflet   │    │ flash  +  Nominatim │    │  Mongoose│    │ Profile       │
+│   URL)   │    │  picker)   │    │  (JSON-mode prompt) │    │  models  │    │ (likes,       │
+└──────────┘    └────────────┘    └─────────────────────┘    └──────────┘    │  favorites,   │
+                                                                            │  comments)    │
+                                                                            └───────────────┘
+```
+
+Green step = AI vision (Zhipu GLM). Teal step = geocoding (OSM Nominatim). Grey steps = plain data.
+
+---
+
+## Project layout
 
 ```
 polymercaptial/
-├── .github/
-│   └── workflows/              # CI/CD pipelines (lint, typecheck, build)
-│
-├── public/                     # Static assets served at the site root
-│   └── images/                 # Placeholder images, logos, OG assets
-│
+├── public/                         # Static assets
+├── scripts/
+│   └── seed-artifacts-mongo.js     # Idempotent demo-data seeder
 ├── src/
-│   ├── actions/                # Next.js Server Actions (mutations)
-│   │   ├── artifacts.ts        # Create, update, delete artifacts
-│   │   └── auth.ts             # Sign in, sign up, sign out
-│   │
-│   ├── app/                    # App Router — routes, layouts, API
-│   │   ├── (auth)/             # Auth route group (no shared chrome)
-│   │   │   ├── callback/       # OAuth / magic-link callback handler
-│   │   │   ├── login/          # Login page
-│   │   │   └── register/       # Registration page
-│   │   │
-│   │   ├── (main)/             # Authenticated app shell (header + footer)
-│   │   │   ├── artifacts/      # Artifact listing & detail
-│   │   │   │   ├── [id]/       # Single artifact view
-│   │   │   │   └── new/        # Submission form
-│   │   │   ├── dashboard/      # Contributor dashboard
-│   │   │   ├── explore/        # Public browse / search
-│   │   │   ├── profile/        # User profiles
-│   │   │   │   └── [username]/ # Dynamic profile by username
-│   │   │   └── layout.tsx      # Shared layout for main routes
-│   │   │
-│   │   ├── api/                # Route Handlers (REST-style endpoints)
-│   │   │   ├── ai/
-│   │   │   │   └── analyze/    # POST — run OpenAI analysis on an artifact
-│   │   │   ├── artifacts/      # GET/POST — artifact CRUD
-│   │   │   └── upload/         # POST — image upload to Supabase Storage
-│   │   │
-│   │   ├── globals.css         # Global styles & CSS variables
-│   │   ├── layout.tsx          # Root HTML shell & metadata
-│   │   └── page.tsx            # Landing / home page
-│   │
-│   ├── components/             # React components
-│   │   ├── ai/                 # AI analysis UI (panels, badges, loading)
-│   │   ├── artifacts/          # Cards, grids, detail views, submission form
-│   │   ├── auth/               # Login / register forms
-│   │   ├── layout/             # Header, footer, navigation
-│   │   └── ui/                 # shadcn/ui primitives (Button, Dialog, …)
-│   │
-│   ├── hooks/                  # Client-side React hooks
-│   │   ├── use-artifacts.ts    # Fetch & cache artifact data
-│   │   └── use-user.ts         # Current session / profile state
-│   │
-│   ├── lib/                    # Shared utilities & service clients
-│   │   ├── openai/
-│   │   │   └── client.ts       # OpenAI SDK singleton
-│   │   ├── supabase/
-│   │   │   ├── client.ts       # Browser Supabase client
-│   │   │   ├── server.ts       # Server Component / Action client
-│   │   │   └── middleware.ts   # Session refresh for middleware
-│   │   ├── constants.ts        # App-wide constants (categories, limits)
-│   │   └── utils.ts            # cn(), formatters, helpers
-│   │
-│   ├── schemas/                # Zod validation schemas
-│   │   └── artifact.ts         # Artifact submission & update shapes
-│   │
-│   ├── types/                  # TypeScript type definitions
-│   │   ├── ai-analysis.ts      # OpenAI response shapes
-│   │   ├── artifact.ts         # Domain models
-│   │   ├── database.ts         # Hand-written Supabase row types
-│   │   └── database.generated.ts  # Auto-generated Supabase types (gitignored until generated)
-│   │
-│   └── middleware.ts           # Auth guard, session refresh, redirects
-│
-├── supabase/                   # Database & local Supabase CLI config
-│   ├── migrations/             # Versioned SQL schema changes
-│   │   └── 001_initial_schema.sql
-│   └── seed.sql                # Dev seed data (optional)
-│
-├── tests/                      # Unit & integration tests (Vitest / Playwright)
-│   ├── unit/
-│   └── e2e/
-│
-├── docs/                       # Extended documentation, ADRs, diagrams
-│
-├── .env.example                # Environment variable template
-├── .gitignore
-├── components.json             # shadcn/ui configuration
-├── next.config.mjs             # Next.js configuration
-├── package.json
-├── postcss.config.mjs
-├── tailwind.config.ts
-└── tsconfig.json
-```
-
-> **Note:** Folders marked with comments like `tests/` and `.github/workflows/` are recommended additions for a production-ready repo. Core application code lives under `src/` and `supabase/`.
-
----
-
-## Key Folder Roles
-
-### Root
-
-| Folder / File | Role |
-|---------------|------|
-| `public/` | Static files (images, favicons) referenced directly by URL. Not processed by the bundler. |
-| `.github/workflows/` | Automated checks on push/PR — lint, typecheck, build, optional deploy. |
-| `.env.example` | Documents required secrets without committing real values. |
-| `components.json` | shadcn/ui alias paths and Tailwind integration settings. |
-| Config files (`next.config.mjs`, `tailwind.config.ts`, `tsconfig.json`) | Framework, styling, and compiler settings. |
-
-### `src/app/` — Routing & Pages
-
-Next.js App Router maps folders to URLs. Route groups `(auth)` and `(main)` organize layouts without affecting the URL path.
-
-| Path | Role |
-|------|------|
-| `(auth)/` | Unauthenticated flows — login, register, OAuth callback. Minimal layout. |
-| `(main)/` | Primary app experience with shared header/footer. |
-| `explore/` | Public gallery for browsing approved artifacts. |
-| `artifacts/` | List, detail (`[id]`), and new submission pages. |
-| `dashboard/` | Signed-in contributor overview (submissions, status). |
-| `profile/[username]/` | Public contributor profile and their artifacts. |
-| `api/` | Server-side HTTP handlers for uploads, AI analysis, and REST endpoints. |
-
-### `src/components/` — UI Layer
-
-| Folder | Role |
-|--------|------|
-| `ui/` | Low-level, reusable primitives from shadcn/ui (Button, Input, Dialog). |
-| `layout/` | Site chrome — navigation, footer, page shells. |
-| `auth/` | Authentication forms and related UI. |
-| `artifacts/` | Domain-specific presentation — cards, grids, detail panels, submission wizard. |
-| `ai/` | Displays AI analysis results, loading states, and re-analyze actions. |
-
-### `src/actions/` — Server Actions
-
-Colocated server-side mutations callable from Client Components without writing API routes. Used for form submissions (auth, artifact create/update) with automatic revalidation.
-
-### `src/lib/` — Infrastructure
-
-| Folder | Role |
-|--------|------|
-| `supabase/` | Three clients — browser, server (cookies), and middleware — for correct SSR auth. |
-| `openai/` | OpenAI client initialization and shared prompt helpers. |
-| `constants.ts` | Single source of truth for categories, upload limits, app name. |
-| `utils.ts` | Class name merging (`cn`) and small pure helpers. |
-
-### `src/hooks/` — Client Hooks
-
-Encapsulate Supabase queries and React state for artifacts and the current user. Keeps page components thin.
-
-### `src/schemas/` & `src/types/`
-
-| Folder | Role |
-|--------|------|
-| `schemas/` | Runtime validation (Zod) shared by forms, actions, and API routes. |
-| `types/` | Compile-time TypeScript interfaces for domain models and DB rows. |
-
-### `supabase/` — Backend Schema
-
-| Path | Role |
-|------|------|
-| `migrations/` | Ordered SQL files applied to PostgreSQL. Source of truth for tables, indexes, RLS policies. |
-| `seed.sql` | Optional dev/test fixture data. |
-
-Core tables:
-
-- **`profiles`** — User metadata (username, avatar, bio, role), linked 1:1 to `auth.users`.
-- **`artifacts`** — Submitted items with image, tags, era, preservation status, and GPS coordinates.
-- **`artifacts_public`** (view) — Privacy-safe read surface; returns blurred coordinates for non-admins.
-
-### `tests/` & `docs/`
-
-| Folder | Role |
-|--------|------|
-| `tests/unit/` | Fast tests for schemas, utilities, and pure functions. |
-| `tests/e2e/` | Browser tests for critical flows (login, submit artifact, explore). |
-| `docs/` | Architecture decisions, API notes, deployment runbooks. |
-
----
-
-## Getting Started
-
-### Prerequisites
-
-- Node.js **≥ 18.17**
-- npm (or pnpm / yarn)
-- A [Supabase](https://supabase.com/) project
-- An [OpenAI](https://platform.openai.com/) API key
-
-### Installation
-
-```bash
-# Clone and enter the project
-cd polymercaptial
-
-# Install dependencies
-npm install
-
-# Copy environment template and fill in values
-cp .env.example .env.local
-```
-
-### Environment Variables
-
-| Variable | Description |
-|----------|-------------|
-| `NEXT_PUBLIC_SUPABASE_URL` | Supabase project URL |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase anonymous (public) key |
-| `SUPABASE_SERVICE_ROLE_KEY` | Service role key — **server only**, never expose to the client |
-| `OPENAI_API_KEY` | OpenAI API key for artifact analysis |
-| `NEXT_PUBLIC_APP_URL` | Canonical app URL (e.g. `http://localhost:3000`) |
-
-### Database Setup
-
-```bash
-# Apply migrations to your Supabase project (via Supabase CLI)
-supabase db push
-
-# Optional: load seed data
-supabase db seed
-
-# Regenerate TypeScript types from your schema
-npm run db:types
-```
-
-### Development
-
-```bash
-npm run dev      # Start dev server at http://localhost:3000
-npm run build    # Production build
-npm run start    # Run production build locally
-npm run lint     # ESLint
-npm run typecheck # TypeScript without emit
+│   ├── actions/                    # Server Actions (mutations)
+│   ├── app/
+│   │   ├── (auth)/                 # No nav: login, register, callback
+│   │   ├── (main)/                 # With navbar/footer: dashboard, explore,
+│   │   │                             profile, artifacts/new
+│   │   ├── api/                    # Route handlers
+│   │   │   ├── analyze-artifact/   # POST — vision analysis (Zhipu GLM)
+│   │   │   ├── artifacts/          # GET/POST artifact list & submit
+│   │   │   ├── upload/             # POST — reserved (501 Not Implemented)
+│   │   │   ├── login | register | logout | me | profile
+│   │   │   ├── favorites/          # Toggle favorite on an artifact
+│   │   │   └── ai/                 # Reserved AI helpers
+│   │   ├── gallery/                # Public gallery
+│   │   ├── globals.css             # Tailwind layers + global animations
+│   │   └── layout.tsx              # Root HTML shell + Toaster
+│   ├── components/
+│   │   ├── ai/                     # AI-analyze button / preview
+│   │   ├── artifacts/              # Upload form, Explore grid, location picker
+│   │   ├── auth/                   # Auth forms
+│   │   ├── layout/                 # Navbar, footer, locale switcher
+│   │   ├── profile/                # Profile view + edit modal
+│   │   └── ui/                     # shadcn/ui primitives, toast
+│   ├── hooks/                      # Client React hooks
+│   ├── lib/
+│   │   ├── auth/                   # jwt, session, password hashing, rate limit
+│   │   ├── vision/                 # Vision provider factory + Zhipu adapter
+│   │   ├── store/                  # Mongoose-backed store (artifacts)
+│   │   ├── mock/                   # Browser-local mock for likes/comments
+│   │   ├── i18n/                   # zh-CN / zh-TW / en dictionaries
+│   │   ├── openai/                 # Legacy client (kept for back-compat)
+│   │   ├── gemini/                 # Deprecated adapter
+│   │   ├── security/               # CSRF / sanitization helpers
+│   │   └── mongodb.ts              # Mongoose connection singleton
+│   ├── models/                     # Mongoose schemas (User, Artifact)
+│   ├── schemas/                    # Zod request schemas
+│   └── types/                      # Shared TypeScript types
+├── supabase/                       # Legacy SQL migrations (no longer applied)
+├── tests/                          # Vitest suites
+└── tmp/                            # Scratch space (PDF generator, scripts)
 ```
 
 ---
 
-## Architecture Overview
+## Data model (MongoDB / Mongoose)
 
-```
-┌─────────────┐     ┌──────────────────┐     ┌─────────────┐
-│   Browser   │────▶│  Next.js App     │────▶│  Supabase   │
-│  (React)    │◀────│  (RSC + Actions) │◀────│  (DB/Auth/  │
-└─────────────┘     └────────┬─────────┘     │   Storage)  │
-                             │               └─────────────┘
-                             ▼
-                      ┌─────────────┐
-                      │   OpenAI    │
-                      │  (Analysis) │
-                      └─────────────┘
-```
-
-1. **Browse** — `(main)/explore` reads artifacts via the `artifacts_public` view (blurred GPS for non-admins).
-2. **Submit** — Contributors upload images via `/api/upload`, then insert rows into `artifacts` with `exact_lat` / `exact_lng`.
-3. **Blur** — A database trigger auto-computes `blurred_lat` / `blurred_lng` on every insert/update.
-4. **Analyze** — `/api/ai/analyze` sends the image to OpenAI; results are stored in `artifacts.ai_tags`.
-
----
-
-## Database Schema
-
-Migration file: `supabase/migrations/001_initial_schema.sql`
-
-### `profiles`
-
-| Column | Type | Notes |
-|--------|------|-------|
-| `id` | `uuid` PK | References `auth.users(id)` |
-| `username` | `text` unique | 3–30 chars, alphanumeric + `_-` |
-| `display_name` | `text` | Optional display name |
-| `avatar_url` | `text` | Profile image URL |
-| `bio` | `text` | Short biography |
-| `role` | `user_role` | `user` (default) or `admin` |
-| `created_at` | `timestamptz` | Auto-set on insert |
-
-A trigger on `auth.users` auto-creates a profile row on signup.
+### `users`
+| Field | Type | Notes |
+|-------|------|-------|
+| `email` | string, unique | Login id |
+| `password` | string \| null | bcrypt hash; `null` for OAuth-only users |
+| `displayName` | string | Shown in UI |
+| `username` | string, unique sparse | Optional handle |
+| `role` | `"user" \| "admin"` | Default `user` |
+| `bio`, `avatarUrl` | string | Editable from profile |
+| `githubId` | string, sparse | Reserved for historical accounts |
+| `favorites` | string[] | Cached favorite artifact ids |
+| `createdAt` | Date | For "days joined" stat |
 
 ### `artifacts`
+| Field | Type | Notes |
+|-------|------|-------|
+| `title`, `description`, `imageUrl` | string | `imageUrl` is a `data:` URL written directly from the form |
+| `aiTags`, `manualTags` | string[] | Two buckets — AI suggests, human edits |
+| `era`, `category`, `locationName` | string | AI-suggested / user-edited |
+| `preservationStatus` | enum | `excellent` / `good` / `fair` / `poor` / `critical` / `unknown` (DB); mapped to `Intact / Minor Damage / Severe Degradation / Ruin` at the API edge |
+| `exactLat/Lng` | number \| null | **Server-only**, never returned to clients |
+| `blurredLat/Lng` | number \| null | Auto-computed in `pre('save')` (2 decimals, or 1 if `isProtected`) |
+| `isProtected` | boolean | Tighter blur when `true` |
+| `userId` | ObjectId → User | Indexed; ownership enforced at the API layer |
+| `likes`, `favorites`, `comments` | mixed | First-class on the document so a single read serves the detail view |
+| `createdAt` | Date | For sort + stat |
 
-| Column | Type | Notes |
-|--------|------|-------|
-| `id` | `uuid` PK | Auto-generated |
-| `title` | `text` | Required |
-| `description` | `text` | Optional narrative |
-| `image_url` | `text` | Required — primary photo |
-| `ai_tags` | `text[]` | Tags from OpenAI analysis |
-| `manual_tags` | `text[]` | Contributor-supplied tags |
-| `era` | `text` | Historical period |
-| `preservation_status` | enum | `excellent` · `good` · `fair` · `poor` · `critical` · `unknown` |
-| `exact_lat` | `float8` | **Admin-only** — precise latitude |
-| `exact_lng` | `float8` | **Admin-only** — precise longitude |
-| `blurred_lat` | `float8` | Auto-computed safe latitude |
-| `blurred_lng` | `float8` | Auto-computed safe longitude |
-| `is_protected` | `boolean` | Coarser blur when `true` (~11 km vs ~1.1 km) |
-| `created_at` | `timestamptz` | Auto-set on insert |
-| `user_id` | `uuid` FK | Owner → `profiles(id)` |
-
-### GPS coordinate protection
-
-| Audience | What they see | How |
-|----------|---------------|-----|
-| Anonymous / regular user | `blurred_lat`, `blurred_lng` | Query `artifacts_public` → `display_lat`, `display_lng` |
-| Admin | `exact_lat`, `exact_lng` | Same view returns exact values when `profiles.role = 'admin'` |
-| Server (service role) | All columns on base table | Backend jobs, migrations, admin tooling |
-
-Blur precision (via `blur_coordinates()`):
-
-- **Standard site** — rounded to 2 decimal places (~1.1 km)
-- **Protected site** (`is_protected = true`) — rounded to 1 decimal place (~11 km)
-
-Direct `SELECT` on the `artifacts` base table is revoked for `anon` and `authenticated` roles so exact coordinates cannot leak through the Supabase Data API.
-
-### Row Level Security (RLS)
-
-**`profiles`**
-
-| Policy | Operation | Rule |
-|--------|-----------|------|
-| Profiles are viewable by everyone | `SELECT` | Always allowed |
-| Users can update their own profile | `UPDATE` | `auth.uid() = id` (cannot change own `role`) |
-
-**`artifacts`**
-
-| Policy | Operation | Rule |
-|--------|-----------|------|
-| Artifacts are viewable by everyone | `SELECT` | Always allowed (base table — service role only) |
-| Authenticated users can insert their own artifacts | `INSERT` | `auth.uid() = user_id` |
-| Users can update their own artifacts | `UPDATE` | `auth.uid() = user_id` |
-| Users can delete their own artifacts | `DELETE` | `auth.uid() = user_id` |
-
-Client reads should use the **`artifacts_public`** view, which is granted to both `anon` and `authenticated`.
+A Mongoose `pre('save')` hook guarantees that whenever `exactLat/Lng` are set, `blurredLat/Lng` are derived — so business code never has to remember to blur.
 
 ---
 
-## Conventions
+## Internationalization
 
-- **Imports:** Use `@/` path alias (maps to `src/`).
-- **Components:** Prefer Server Components; add `"use client"` only when hooks or browser APIs are needed.
-- **Forms:** React Hook Form + Zod schemas from `src/schemas/`.
-- **Styling:** Tailwind utility classes; design tokens in `globals.css`.
-- **New UI primitives:** `npx shadcn@latest add <component>` — outputs to `src/components/ui/`.
-- **New migrations:** Add numbered SQL files under `supabase/migrations/`; never edit applied migrations in place.
+- Locale is `zh-CN` (default), `zh-TW`, or `en`, persisted as the `rv_locale` cookie.
+- A server-side helper `localeToZhipuLanguage(locale)` maps the UI locale to the language the vision prompt asks for.
+- Three dictionaries live in `src/lib/i18n/locales.ts` (~860 lines). A locale switcher in the navbar writes the cookie.
 
 ---
 
-## Tags & Upload Limits
+## Roadmap
 
-Contributors attach **manual tags** at submission time; OpenAI writes **ai tags** after analysis. There is no fixed category enum — discovery is tag-driven.
-
-Upload limit: **10 MB** per image. Accepted formats: JPEG, PNG, WebP.
+Already documented as "Future enhancements" in the project write-up:
+- **Xiaohongshu-style social layer** — public profiles, follow graph, direct messages.
+- **Richer uploads** — multiple images per artifact, short video, pure-text entries. (`/api/upload` is currently a 501 placeholder.)
+- **Stronger auth** — third-party sign-in (Google / WeChat), email verification on sign-up, phone-number verification.
+- **Image hosting** — move from inline `data:` URLs to object storage (S3-compatible) so larger photos don't blow up the document size.
+- **Hardened moderation** — a reported-items queue and an admin review page; `role: "admin"` is already on the user schema.
 
 ---
 
 ## License
 
-Private — all rights reserved unless otherwise specified.
+This is a personal portfolio / summer-project repository. If you'd like to use the code, please open an issue or contact me first.
+
+## Contact
+
+- GitHub: [@raywang7266](https://github.com/raywang7266)
+- Repository: https://github.com/raywang7266/RelicVault-AI
