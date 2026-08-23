@@ -85,7 +85,7 @@ export function Navbar({ initialUser }: { initialUser?: SessionUser | null }) {
 
         <div className="flex items-center gap-3">
           <LanguageSwitcher />
-          {isLoading ? (
+          {isLoading && !user ? (
             <span className="h-5 w-16 animate-pulse rounded bg-muted" />
           ) : user ? (
             <>

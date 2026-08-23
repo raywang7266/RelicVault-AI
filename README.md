@@ -117,15 +117,20 @@ npm run dev
 
 Open http://localhost:3000 and sign up. The first account can immediately start uploading artifacts.
 
-### Seed demo data (optional)
+### Demo data (auto-seeded on first run)
 
-`scripts/seed-artifacts-mongo.js` inserts ~12 sample artifacts into your local Mongo and prints credentials for a demo `curator` account.
+You don't need to do anything — the **first time the app reads from an empty database**, it automatically inserts 12 sample artifacts owned by a demo `curator` account. Every install sees the exact same demo content (fixed titles, descriptions, tags, images, and creation dates), because the dataset is bundled in the code (`src/lib/store/demo-data.ts`).
 
-```bash
-node scripts/seed-artifacts-mongo.js
-```
+Want to skip signing up? Log in with the demo account:
 
-The script is **idempotent**: it skips artifacts that the `curator` user already owns.
+| Field | Value |
+|-------|-------|
+| email | `curator@relicvault.app` |
+| password | `RelicVault@2026` |
+
+The auto-seeder is **idempotent**: it only runs when the demo `curator` account doesn't exist yet. Deleting demo artifacts (or the whole dataset) will never trigger a re-insert.
+
+> Alternatively, `node scripts/seed-artifacts-mongo.js` does the same thing manually (also idempotent).
 
 ### Scripts
 
