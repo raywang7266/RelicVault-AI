@@ -38,6 +38,8 @@ COPY --from=builder /app/next.config.mjs ./next.config.mjs
 COPY --from=builder /app/postcss.config.mjs ./postcss.config.mjs
 COPY --from=builder /app/tailwind.config.ts ./tailwind.config.ts
 COPY --from=builder /app/tsconfig.json ./tsconfig.json
+# Optional manual demo-data seeder, so `docker compose exec app node scripts/…` works
+COPY --from=builder /app/scripts ./scripts
 
 RUN chown -R node:node /app
 USER node
