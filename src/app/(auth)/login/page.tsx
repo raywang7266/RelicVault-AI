@@ -1,11 +1,20 @@
 import { Suspense } from "react";
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { AuthForm } from "@/components/auth/auth-form";
 import { APP_NAME } from "@/lib/constants";
+import { getSessionUser } from "@/lib/auth/session";
 import { getServerTranslation } from "@/lib/i18n/server";
 import LanguageSwitcher from "@/lib/i18n/language-switcher";
 
-export default function LoginPage() {
+export default async function LoginPage() {
+  // 已登录（且用户真实存在于库中）则直接去探索页。
+  // 注意必须查库而不是只看 cookie：切换到全新数据库（如 Docker 空 Mongo）后，
+  // 旧会话 cookie 的 JWT 签名仍有效但用户已不存在——此时要正常渲染登录表单，
+  // 让用户重新登录覆盖旧 cookie，而不是把人弹走。
+  const user = await getSessionUser();
+  if (user) redirect("/explore");
+
   const { t } = getServerTranslation();
   return (
     <div className="relative flex min-h-screen items-center justify-center bg-muted/40 px-4">

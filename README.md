@@ -1,520 +1,324 @@
 # RelicVault AI
 
-A crowdsourced digital heritage and minor artifact museum powered by AI. Contributors submit photos of artifacts with tags and GPS coordinates; **Zhipu GLM** vision enriches submissions with `aiTags`; **MongoDB (Mongoose)** stores users, artifacts, likes, favorites, and comments. Exact coordinates are never returned to the client — the API only serves blurred coordinates to protect unprotected heritage sites.
+> A crowdsourced digital heritage & minor-artifact museum. Upload a photo, drop a pin, and a vision model turns it into a structured archive entry in under a minute.
+
+If the Louvre gets the masterpieces, **RelicVault gets everything else** — village heirlooms, family keepsakes, flea-market finds, the cultural artifacts that are under-protected or already forgotten.
+
+**Stack:** Next.js 14 (App Router) · TypeScript · MongoDB / Mongoose · Zhipu GLM `glm-4v-flash` (vision) · OpenStreetMap Nominatim + Leaflet (geocoding & maps) · Tailwind + shadcn/ui · 3-language UI (zh-CN / zh-TW / en).
+
+---
+
+## Highlights
+
+- **Photo → structured record in one click.** Upload an image; the form is auto-filled with title, dynasty / era, category, material, preservation status, and short tags — all from a strict JSON-prompt vision call.
+- **Privacy-by-default geocoding.** Coordinates entered on the map are auto-blurred before storage: 2 decimals (~±550 m) for ordinary finds, 1 decimal (~±5.5 km) for protected sites. Exact coordinates never leave the server.
+- **Searchable, filterable Explore page.** Fuzzy title search, `#tag` search, era / category / preservation-status filters, and a grid-or-map toggle. Likes, favorites, and comments are first-class on each artifact.
+- **Personal profile & contributions.** Stats dashboard, editable profile card, full CRUD on every artifact you uploaded.
+- **Three languages, one UI.** Simplified Chinese, Traditional Chinese, and English — driven by the `rv_locale` cookie. The vision model also returns results in the user's language when you ask it to.
 
 ---
 
 ## Tech Stack
 
-| Layer | Technology |
-|-------|------------|
-| Framework | [Next.js 14](https://nextjs.org/) (App Router) |
-| Language | TypeScript |
-| Styling | Tailwind CSS + [shadcn/ui](https://ui.shadcn.com/) (Radix UI) |
-| Database | [MongoDB](https://www.mongodb.com/) via Mongoose |
-| Auth | bcrypt password hashing + JWT session cookie (`jose`, httpOnly) |
-| AI vision | [Zhipu GLM](https://open.bigmodel.cn) `glm-4v-flash` (China-direct, free tier) |
-| Maps | OpenStreetMap Nominatim (geocoding) + Leaflet / react-leaflet |
-| Validation | Zod + React Hook Form |
-| Icons | Lucide React |
+| Layer | Choice |
+|-------|--------|
+| Framework | Next.js 14.2 (App Router, Node runtime, edge-safe route handlers) |
+| Language | TypeScript 5.7 (strict) |
+| Database | MongoDB via Mongoose 9 (single source of truth for users, artifacts, likes, favorites, comments) |
+| Auth | Email + password, bcrypt hashes, **JWT session cookies** (`rv_session`, `jose` HS256, 7-day expiry, `httpOnly` + `sameSite=lax`) |
+| Vision provider | [Zhipu GLM](https://open.bigmodel.cn) `glm-4v-flash` — OpenAI-compatible Chat Completions, China-direct, free tier, JSON-mode output. Pluggable via `AI_PROVIDER` env (`zhipu` default, `siliconflow` reserved, `gemini` deprecated) |
+| Geocoding | [OpenStreetMap Nominatim](https://nominatim.openstreetmap.org/) — keyless, free |
+| Maps | Leaflet 1.9 + react-leaflet 4.2, OSM tiles |
+| UI | Tailwind 3 + shadcn/ui (Radix UI primitives), `lucide-react` icons, Radix Toast for notifications |
+| Validation | Zod 3 + React Hook Form 7 |
+| Tests | Vitest 4 |
+
+The `openai` JS SDK still appears in `package.json` because `@supabase/ssr` depends on it transitively, but **no application code calls OpenAI**. The visual pipeline goes through `src/lib/vision/zhipu.ts`.
 
 ---
 
-## Project Directory Structure
+## Quick start
 
-```
-polymercaptial/
-├── .github/
-│   └── workflows/              # CI/CD pipelines (lint, typecheck, build)
-│
-├── Dockerfile                  # 3-stage production image (deps → build → run)
-├── docker-compose.yml          # app + MongoDB stack (recommended way to run)
-├── .dockerignore               # keeps node_modules/.next/secrets out of the image
-│
-├── public/                     # Static assets served at the site root
-│   └── images/                 # Placeholder images, logos, OG assets
-│
-├── src/
-│   ├── actions/                # Next.js Server Actions (mutations)
-│   │   ├── artifacts.ts        # Create, update, delete artifacts
-│   │   └── auth.ts             # Sign in, sign up, sign out
-│   │
-│   ├── app/                    # App Router — routes, layouts, API
-│   │   ├── (auth)/             # Auth route group (no shared chrome)
-│   │   │   ├── callback/       # OAuth / magic-link callback handler
-│   │   │   ├── login/          # Login page
-│   │   │   └── register/       # Registration page
-│   │   │
-│   │   ├── (main)/             # Authenticated app shell (header + footer)
-│   │   │   ├── artifacts/      # Artifact listing & detail
-│   │   │   │   ├── [id]/       # Single artifact view
-│   │   │   │   └── new/        # Submission form
-│   │   │   ├── dashboard/      # Contributor dashboard
-│   │   │   ├── explore/        # Public browse / search
-│   │   │   ├── profile/        # User profiles
-│   │   │   │   └── [username]/ # Dynamic profile by username
-│   │   │   └── layout.tsx      # Shared layout for main routes
-│   │   │
-│   │   ├── api/                # Route Handlers (REST-style endpoints)
-│   │   │   ├── ai/
-│   │   │   │   └── analyze/    # POST — run OpenAI analysis on an artifact
-│   │   │   ├── artifacts/      # GET/POST — artifact CRUD
-│   │   │   └── upload/         # POST — image upload to Supabase Storage
-│   │   │
-│   │   ├── globals.css         # Global styles & CSS variables
-│   │   ├── layout.tsx          # Root HTML shell & metadata
-│   │   └── page.tsx            # Landing / home page
-│   │
-│   ├── components/             # React components
-│   │   ├── ai/                 # AI analysis UI (panels, badges, loading)
-│   │   ├── artifacts/          # Cards, grids, detail views, submission form
-│   │   ├── auth/               # Login / register forms
-│   │   ├── layout/             # Header, footer, navigation
-│   │   └── ui/                 # shadcn/ui primitives (Button, Dialog, …)
-│   │
-│   ├── hooks/                  # Client-side React hooks
-│   │   ├── use-artifacts.ts    # Fetch & cache artifact data
-│   │   └── use-user.ts         # Current session / profile state
-│   │
-│   ├── lib/                    # Shared utilities & service clients
-│   │   ├── openai/
-│   │   │   └── client.ts       # OpenAI SDK singleton
-│   │   ├── supabase/
-│   │   │   ├── client.ts       # Browser Supabase client
-│   │   │   ├── server.ts       # Server Component / Action client
-│   │   │   └── middleware.ts   # Session refresh for middleware
-│   │   ├── constants.ts        # App-wide constants (categories, limits)
-│   │   └── utils.ts            # cn(), formatters, helpers
-│   │
-│   ├── schemas/                # Zod validation schemas
-│   │   └── artifact.ts         # Artifact submission & update shapes
-│   │
-│   ├── types/                  # TypeScript type definitions
-│   │   ├── ai-analysis.ts      # OpenAI response shapes
-│   │   ├── artifact.ts         # Domain models
-│   │   ├── database.ts         # Hand-written Supabase row types
-│   │   └── database.generated.ts  # Auto-generated Supabase types (gitignored until generated)
-│   │
-│   └── middleware.ts           # Auth guard, session refresh, redirects
-│
-├── supabase/                   # Database & local Supabase CLI config
-│   ├── migrations/             # Versioned SQL schema changes
-│   │   └── 001_initial_schema.sql
-│   └── seed.sql                # Dev seed data (optional)
-│
-├── tests/                      # Unit & integration tests (Vitest / Playwright)
-│   ├── unit/
-│   └── e2e/
-│
-├── docs/                       # Extended documentation, ADRs, diagrams
-│
-├── .env.example                # Environment variable template
-├── .gitignore
-├── components.json             # shadcn/ui configuration
-├── next.config.mjs             # Next.js configuration
-├── package.json
-├── postcss.config.mjs
-├── tailwind.config.ts
-└── tsconfig.json
-```
+### Prerequisites
+- **Node.js** ≥ 18.17 (project tested on 22.x)
+- **MongoDB** running locally on `mongodb://localhost:27017` (or set `MONGODB_URI` to a remote cluster)
+- A **Zhipu GLM** API key (free): https://open.bigmodel.cn → 控制台 → API Keys
 
-> **Note:** Folders marked with comments like `tests/` and `.github/workflows/` are recommended additions for a production-ready repo. Core application code lives under `src/` and `supabase/`.
+### Install MongoDB
 
----
+RelicVault needs a MongoDB instance to store users, artifacts, likes, favorites, and comments. Pick **one** of the three options below — all of them work out of the box.
 
-## Key Folder Roles
+#### Option A — MongoDB Community Server (local install)
 
-### Root
+The most common choice for local development.
 
-| Folder / File | Role |
-|---------------|------|
-| `public/` | Static files (images, favicons) referenced directly by URL. Not processed by the bundler. |
-| `.github/workflows/` | Automated checks on push/PR — lint, typecheck, build, optional deploy. |
-| `.env.example` | Documents required secrets without committing real values. |
-| `components.json` | shadcn/ui alias paths and Tailwind integration settings. |
-| Config files (`next.config.mjs`, `tailwind.config.ts`, `tsconfig.json`) | Framework, styling, and compiler settings. |
+1. **Download** the installer for your OS from the official site:
+   - **Windows**: https://www.mongodb.com/try/download/community (pick the `.msi` installer; Windows 10/11 64-bit)
+   - **macOS**: `brew tap mongodb/brew && brew install mongodb-community` (Homebrew), or download the `.tgz` from the same page
+   - **Linux (Ubuntu/Debian)**: follow https://www.mongodb.com/docs/manual/tutorial/install-mongodb-on-ubuntu/
+2. **Run the installer** (Windows): choose "Complete" setup, and **check "Install MongoDB as a Service"** so it starts automatically on boot. Note the data directory (default `C:\Program Files\MongoDB\Server\<version>\data`).
+3. **Verify** the server is running:
+   ```bash
+   # Windows (Git Bash) / macOS / Linux
+   mongosh                          # opens the Mongo shell; type `exit` to quit
+   # or, if mongosh isn't on PATH yet:
+   mongod --version                 # prints the server version
+   ```
+   If `mongosh` connects to `mongodb://localhost:27017` without error, you're done.
+4. The default connection string is `mongodb://localhost:27017/relicvault` — which is exactly what `.env.example` ships with, so **no `.env.local` edit is needed** for a local setup.
 
-### `src/app/` — Routing & Pages
+> **Tip — MongoDB Compass**: the official GUI (`https://www.mongodb.com/try/download/compass`) is bundled with the Windows installer. It's handy for browsing collections visually. Optional, but recommended.
 
-Next.js App Router maps folders to URLs. Route groups `(auth)` and `(main)` organize layouts without affecting the URL path.
+#### Option B — Docker (fastest, no system install)
 
-| Path | Role |
-|------|------|
-| `(auth)/` | Unauthenticated flows — login, register, OAuth callback. Minimal layout. |
-| `(main)/` | Primary app experience with shared header/footer. |
-| `explore/` | Public gallery for browsing approved artifacts. |
-| `artifacts/` | List, detail (`[id]`), and new submission pages. |
-| `dashboard/` | Signed-in contributor overview (submissions, status). |
-| `profile/[username]/` | Public contributor profile and their artifacts. |
-| `api/` | Server-side HTTP handlers for uploads, AI analysis, and REST endpoints. |
-
-### `src/components/` — UI Layer
-
-| Folder | Role |
-|--------|------|
-| `ui/` | Low-level, reusable primitives from shadcn/ui (Button, Input, Dialog). |
-| `layout/` | Site chrome — navigation, footer, page shells. |
-| `auth/` | Authentication forms and related UI. |
-| `artifacts/` | Domain-specific presentation — cards, grids, detail panels, submission wizard. |
-| `ai/` | Displays AI analysis results, loading states, and re-analyze actions. |
-
-### `src/actions/` — Server Actions
-
-Colocated server-side mutations callable from Client Components without writing API routes. Used for form submissions (auth, artifact create/update) with automatic revalidation.
-
-### `src/lib/` — Infrastructure
-
-| Folder | Role |
-|--------|------|
-| `mongodb.ts` | Singleton Mongoose connection (cached on `globalThis` so HMR doesn't leak connections). |
-| `store/` | Data-access layer for artifacts & users (DTOs, ownership checks, demo seeding). |
-| `models/` | Mongoose schemas — `User.ts`, `Artifact.ts`. |
-| `vision/` | Vision provider factory + Zhipu GLM adapter (`glm-4v-flash`). |
-| `auth/` | bcrypt hashing, JWT signing/verification (`jose`), session cookie helpers. |
-| `constants.ts` | Single source of truth for categories, upload limits, app name. |
-| `utils.ts` | Class name merging (`cn`) and small pure helpers. |
-
-### `src/hooks/` — Client Hooks
-
-Encapsulate API calls (`/api/me`, `/api/artifacts`, …) and React state for artifacts and the current user. Keeps page components thin.
-
-### `src/schemas/` & `src/types/`
-
-| Folder | Role |
-|--------|------|
-| `schemas/` | Runtime validation (Zod) shared by forms, actions, and API routes. |
-| `types/` | Compile-time TypeScript interfaces for domain models and DB rows. |
-
-### `supabase/` — Backend Schema
-
-| Path | Role |
-|------|------|
-| `migrations/` | Ordered SQL files applied to PostgreSQL. Source of truth for tables, indexes, RLS policies. |
-| `seed.sql` | Optional dev/test fixture data. |
-
-Core tables:
-
-- **`profiles`** — User metadata (username, avatar, bio, role), linked 1:1 to `auth.users`.
-- **`artifacts`** — Submitted items with image, tags, era, preservation status, and GPS coordinates.
-- **`artifacts_public`** (view) — Privacy-safe read surface; returns blurred coordinates for non-admins.
-
-### `tests/` & `docs/`
-
-| Folder | Role |
-|--------|------|
-| `tests/unit/` | Fast tests for schemas, utilities, and pure functions. |
-| `tests/e2e/` | Browser tests for critical flows (login, submit artifact, explore). |
-| `docs/` | Architecture decisions, API notes, deployment runbooks. |
-
----
-
-## Getting Started
-
-Pick **one** of two ways to run the project:
-
-| | Option A — Docker | Option B — Node + MongoDB |
-|---|---|---|
-| What you install | Docker Desktop only | Node.js ≥ 18.17 **and** MongoDB |
-| Commands to get running | 2 | ~6 |
-| Database | bundled (`mongo:7` container) | you run it yourself |
-
-> **Option A is recommended** — it starts MongoDB *and* the app together, so there is no local database to install and nothing else to configure.
-
----
-
-### Option A — Run everything with Docker (recommended)
-
-#### Prerequisites
-
-- **Docker Desktop** installed **and running** (Windows/macOS: <https://www.docker.com/products/docker-desktop/>). Verify with `docker ps` — if it prints a table (even empty), the daemon is up; if it says *"Cannot connect to the Docker daemon"*, open Docker Desktop first and wait for its tray icon to stop animating.
-- **Your own Zhipu GLM API key** — see [Get a Zhipu GLM API key](#get-a-zhipu-glm-api-key-required). Not included in the repo.
-
-#### Step 1 — create your `.env.local`
+If you already have Docker, this is a one-liner:
 
 ```bash
-cp .env.example .env.local
+# Start a MongoDB 7 container on port 27017, with a named volume for persistence
+docker run -d --name relicvault-mongo \
+  -p 27017:27017 \
+  -v relicvault-mongo-data:/data/db \
+  mongo:7
 ```
 
-Open it and fill in two values:
+- It exposes `mongodb://localhost:27017` on your host, so `.env.local` needs **no changes**.
+- Data persists in the `relicvault-mongo-data` volume across container restarts.
+- Stop / start later: `docker stop relicvault-mongo` / `docker start relicvault-mongo`.
+
+#### Option C — MongoDB Atlas (cloud, free tier — no local install at all)
+
+Best if you don't want to install anything on your machine, or you're deploying to a platform like Vercel.
+
+1. Sign up at **https://www.mongodb.com/cloud/atlas/register** (free tier, no credit card).
+2. Create a **free M0 cluster** (512 MB, plenty for development).
+3. Under **Database Access**, add a database user (username + password — remember these).
+4. Under **Network Access**, click **Add IP Address → Allow access from anywhere** (`0.0.0.0/0`), or add your current IP.
+5. Click **Connect → Drivers → Node.js**, copy the connection string. It looks like:
+   ```
+   mongodb+srv://<username>:<password>@cluster0.xxxxx.mongodb.net/?retryWrites=true&w=majority
+   ```
+   Replace `<username>` / `<password>` with the ones from step 3.
+6. Paste it into `.env.local` as `MONGODB_URI`:
+   ```bash
+   MONGODB_URI=mongodb+srv://youruser:yourpass@cluster0.xxxxx.mongodb.net/relicvault?retryWrites=true&w=majority
+   ```
+
+> The app creates its collections and indexes automatically on first run — no manual schema setup is needed.
+
+### Setup
 
 ```bash
-# Any long random string — generate one with:
-#   node -e "console.log(require('crypto').randomBytes(48).toString('base64url'))"
-SESSION_SECRET=paste-a-long-random-string-here
-
-# Your own Zhipu key (required for AI image analysis)
-ZHIPU_API_KEY=your-key.your-secret
-```
-
-> Everything else can stay as-is. In particular **you do not need to change `MONGODB_URI`** — `docker-compose.yml` overrides it to `mongodb://mongo:27017/relicvault` automatically, because inside Docker the database lives at the service name `mongo`, not `localhost`.
-
-#### Step 2 — build & start the stack
-
-```bash
-docker compose up -d --build
-```
-
-- First run takes **4–8 minutes** (pulls `node:22-slim` + `mongo:7`, installs dependencies, compiles Next.js). Later runs are seconds thanks to layer caching.
-- `--build` = rebuild the image (use it whenever you change code).
-- `-d` = detached, so you keep your terminal.
-
-#### Step 3 — open the app
-
-**<http://localhost:3000>** → you land on the login page. Register an account, or sign in with the demo account below.
-
-| Service | URL / Port | Notes |
-|---------|-----------|-------|
-| Next.js app | <http://localhost:3000> | the website |
-| MongoDB | `mongodb://localhost:27018` (container port 27017) | port **27018** on purpose — 27017 is usually taken by a locally installed `mongod` |
-
-#### Everyday commands
-
-```bash
-docker compose ps                  # status of both containers
-docker compose logs -f app         # follow app logs (Ctrl+C to quit)
-docker compose logs -f mongo       # follow database logs
-docker compose restart app         # restart after editing .env.local
-docker compose up -d --build       # rebuild + restart after editing code
-docker compose down                # stop everything (data is KEPT)
-docker compose down -v             # stop everything and DELETE the database
-docker compose exec mongo mongosh  # open a Mongo shell inside the container
-```
-
-> **Changed `.env.local`?** The app reads env vars at container start, and `.env.local` is *not* copied into the image — so a plain `docker compose restart app` is enough. Use `up -d --build` only for **code** changes.
-
-> **Where does my data live?** In the named Docker volume `relicvault-mongo-data`. `docker compose down` keeps it; only `down -v` deletes it.
-
----
-
-### Option B — Run with Node + MongoDB directly
-
-Only pick this if you don't want Docker.
-
-1. Install **Node.js ≥ 18.17** and **MongoDB** (local server, or a free [Atlas](https://www.mongodb.com/cloud/atlas/register) cluster).
-2. Ensure MongoDB is listening on `mongodb://localhost:27017`, then:
-
-```bash
-cp .env.example .env.local   # fill SESSION_SECRET + ZHIPU_API_KEY
+git clone https://github.com/raywang7266/RelicVault-AI.git
+cd RelicVault-AI
 npm install
-npm run dev                  # http://localhost:3000
+cp .env.example .env.local        # then edit .env.local (see below)
+npm run dev
 ```
 
-Collections and indexes are created automatically on first run — there is **no migration step**.
+Open http://localhost:3000 and sign up. The first account can immediately start uploading artifacts.
 
----
+### Demo data (auto-seeded on first run)
 
-### Environment Variables
+You don't need to do anything — the **first time the app reads from an empty database**, it automatically inserts 12 sample artifacts owned by a demo `curator` account. Every install sees the exact same demo content (fixed titles, descriptions, tags, images, and creation dates), because the dataset is bundled in the code (`src/lib/store/demo-data.ts`).
 
-Set in `.env.local` (also read by `docker compose` via `env_file`):
-
-| Variable | Required? | Description |
-|----------|-----------|-------------|
-| `MONGODB_URI` | **Yes** | Mongo connection string. Local: `mongodb://localhost:27017/relicvault` — **Docker overrides this automatically** to `mongodb://mongo:27017/relicvault` |
-| `SESSION_SECRET` | **Yes** | Random string used to sign the JWT session cookie. Generate: `node -e "console.log(require('crypto').randomBytes(48).toString('base64url'))"` |
-| `ZHIPU_API_KEY` | **Yes** | Your own Zhipu key — powers AI image analysis. See below |
-| `AI_PROVIDER` | optional, default `zhipu` | `zhipu` (default) / `siliconflow` (reserved) / `gemini` (deprecated) |
-| `ZHIPU_MODEL` | optional, default `glm-4v-flash` | Override the vision model |
-| `NEXT_PUBLIC_APP_URL` | optional, default `http://localhost:3000` | Canonical URL for share links |
-
-> Supabase / OpenAI keys may still sit in `.env.local` for reference — **no code reads them anymore**. The vision pipeline runs on Zhipu GLM, and storage/auth run on MongoDB.
-
-### Get a Zhipu GLM API key (required)
-
-AI image analysis calls **Zhipu GLM `glm-4v-flash`** through the [Zhipu Open Platform](https://open.bigmodel.cn). **Each user must apply for their own key (~2 minutes, free):**
-
-1. Sign up / log in at <https://open.bigmodel.cn> (phone or email; new accounts get free tokens).
-2. Complete **real-name verification** (实名认证) if prompted.
-3. Open the console → **API Keys** (direct link: <https://open.bigmodel.cn/usercenter/apikeys>).
-4. Click **创建 API Key**, name it anything, then **copy it** — it is shown only once.
-5. Paste it into `.env.local` as `ZHIPU_API_KEY=...`.
-6. Restart: `docker compose restart app` (or restart `npm run dev`).
-
-**If you skip it:** the site still runs — browsing, login, exploring all work — but clicking **"AI 分析"** on the upload form fails with `未配置 ZHIPU_API_KEY`. You can still fill the form manually, but the AI feature is dead.
-
-**Cost:** `glm-4v-flash` is permanently free on Zhipu's platform.
-
-### Demo data (seeded automatically)
-
-On the **very first read against an empty database**, the app inserts 12 sample artifacts owned by a demo `curator` account. The dataset ships in code (`src/lib/store/demo-data.ts`) with fixed titles, tags, images, and creation dates, so **every install sees identical demo content**.
-
-Skip registration and log in with:
+Want to skip signing up? Log in with the demo account:
 
 | Field | Value |
 |-------|-------|
 | email | `curator@relicvault.app` |
 | password | `RelicVault@2026` |
 
-The seeder is idempotent — it runs only when the demo account is missing, so deleting demo artifacts never triggers a re-insert. (`node scripts/seed-artifacts-mongo.js` does the same thing manually.)
+The auto-seeder is **idempotent**: it only runs when the demo `curator` account doesn't exist yet. Deleting demo artifacts (or the whole dataset) will never trigger a re-insert.
 
-### Troubleshooting
-
-| Symptom | Fix |
-|---------|-----|
-| `Cannot connect to the Docker daemon` | Start Docker Desktop and wait until it reports *running* |
-| `port is already allocated` (27017 / 3000) | Another process owns the port. Stop your local `mongod`, or change the host side in `docker-compose.yml` (e.g. `"27019:27017"`) |
-| `Conflict. The container name "/relicvault-mongo" is already in use` | A container from an earlier `docker run` still exists: `docker rm -f relicvault-mongo`, then `docker compose up -d` |
-| Upload form shows `未配置 ZHIPU_API_KEY` | `ZHIPU_API_KEY` missing or wrong in `.env.local`; fix it then `docker compose restart app` |
-| Login button bounces you to `/explore` | Stale session cookie from an older database. Hard-refresh (Ctrl+Shift+R), or clear the `rv_session` cookie |
-| Fresh DB shows nothing | Hit <http://localhost:3000/explore> once — auto-seeding runs on first read |
+> Alternatively, `node scripts/seed-artifacts-mongo.js` does the same thing manually (also idempotent).
 
 ### Scripts
 
 | Command | What it does |
 |---------|--------------|
-| `npm run dev` | Dev server (hot reload) at <http://localhost:3000> |
+| `npm run dev` | Start the Next.js dev server |
 | `npm run build` | Production build |
-| `npm run start` | Serve the production build locally |
+| `npm run start` | Run the production build |
 | `npm run lint` | ESLint (next/core-web-vitals) |
-| `npm run typecheck` | `tsc --noEmit` |
+| `npm run typecheck` | `tsc --noEmit` strict check |
 
 ---
 
-## Architecture Overview
+## Environment variables
 
-```
-┌─────────────┐     ┌──────────────────┐     ┌─────────────┐
-│   Browser   │────▶│  Next.js App     │────▶│  MongoDB    │
-│  (React)    │◀────│  (RSC + Actions) │◀────│  (Mongoose) │
-└─────────────┘     └────────┬─────────┘     └─────────────┘
-                             │
-                             ▼
-                      ┌─────────────┐
-                      │ Zhipu GLM   │
-                      │ glm-4v-flash│
-                      │ (Analysis)  │
-                      └─────────────┘
-```
+Copy `.env.example` → `.env.local` and fill in:
 
-With Docker, the app and MongoDB run as two containers on a private network:
+| Var | Required? | Purpose |
+|-----|-----------|---------|
+| `MONGODB_URI` | **Yes** | MongoDB connection string (e.g. `mongodb://localhost:27017/relicvault`) |
+| `SESSION_SECRET` | **Yes** | HMAC-SHA256 secret used to sign the session JWT (any random string ≥ 32 chars) |
+| `AI_PROVIDER` | optional, default `zhipu` | Pick the vision provider: `zhipu` (default) / `siliconflow` (reserved) / `gemini` (deprecated) |
+| `ZHIPU_API_KEY` | required when `AI_PROVIDER=zhipu` | API key from open.bigmodel.cn |
+| `ZHIPU_MODEL` | optional, default `glm-4v-flash` | Override the model id |
+| `NEXT_PUBLIC_APP_URL` | optional, default `http://localhost:3000` | Used for canonical links & share URLs |
+| `SILICONFLOW_API_KEY` | reserved | Only needed if you implement that provider |
+| `GEMINI_API_KEY` | reserved | Gemini is **disabled** (Google services are unreachable from the deployment region) |
 
-```
-localhost:3000 ──▶ relicvault-app  ──(mongo:27017)──▶ relicvault-mongo
-                        │                                   │
-                        └──── relicvault-mongo-data ◀───────┘  (named volume, persists data)
-```
-
-1. **Browse** — `(main)/explore` reads artifacts via `src/lib/store/artifacts.ts`; the API layer (`/api/artifacts`) only ever returns blurred coordinates.
-2. **Submit** — Contributors upload a photo, then insert a document into the `artifacts` collection with `exactLat` / `exactLng`.
-3. **Blur** — The store layer computes `blurredLat` / `blurredLng` on every write; exact coordinates are never serialized to the client.
-4. **Analyze** — `/api/analyze-artifact` sends the image to Zhipu GLM; results are stored as `aiTags` plus suggested title / era / category / description.
+Legacy Supabase and OpenAI keys can stay in `.env.local` for reference — they are no longer consulted by any code path.
 
 ---
 
-## Data Model
+## How it works
 
-Schema definitions live in `src/models/` and are applied by Mongoose at runtime (no migrations):
+### 1 · Sign up & sign in
+- Email + password → `bcryptjs` hash → user row in Mongo `users` collection.
+- On success, `signSession(userId)` returns a JWT signed with `SESSION_SECRET` (HS256, 7-day expiry). The browser stores it as the `rv_session` cookie: `httpOnly`, `sameSite=lax`, `secure` in production. The client never sees the token.
 
-- **`src/models/User.ts`** — `username`, `email`, `passwordHash` (bcrypt), `displayName`, `avatarUrl`, `bio`, `role`, timestamps.
-- **`src/models/Artifact.ts`** — `title`, `description`, `imageUrl`, `aiTags[]`, `manualTags[]`, `era`, `category`, `locationName`, `preservationStatus`, `exactLat` / `exactLng` (sensitive, server-only), `blurredLat` / `blurredLng`, `isProtected`, `userId`, `likes[]`, `favorites[]`, `comments[]`, `createdAt`.
+### 2 · Submit an artifact (`/artifacts/new`)
+- The user picks a photo, types/edits an era, category, preservation status, description, manual tags, optionally types a place name or drops a pin on the OSM map.
+- Clicking **AI analyze** sends a `data:` URL of the photo + the current UI locale to `POST /api/analyze-artifact`.
+- That route calls `createVisionProvider().analyzeArtifact(...)` (Zhipu GLM `glm-4v-flash`) with a strict system prompt that:
+  - outputs exactly one JSON object — no prose, no markdown;
+  - pins `category` to one of six fixed Chinese terms (so the Explore filter is stable);
+  - pins `preservationStatus` to one of four English enums;
+  - fills unclear fields with the current-language word for **"unknown"** instead of guessing;
+  - tells the model which UI language to use for `title` / `era` / `description` / `tags`.
+- The form auto-fills from the JSON, the user reviews, and submits.
 
-### GPS coordinate protection
+### 3 · Persist & publish (`POST /api/artifacts`)
+- Server-side zod validation + 5 req / 60s rate limit per IP.
+- The artifact row is written with the **exact** coordinates; a Mongoose `pre('save')` hook computes `blurredLat` / `blurredLng` automatically (2 decimals normal, 1 decimal if `isProtected`).
+- The Explore page never receives exact coordinates.
 
-| Audience | What they see | How |
-|----------|---------------|-----|
-| Any client (anonymous or logged in) | `blurredLat`, `blurredLng` | The DTO layer never serializes `exactLat` / `exactLng` |
-| Server | All fields | Used internally for maps and ownership checks |
+### 4 · Browse, like, comment (`/explore`, `/artifacts/[id]`)
+- One `GET /api/artifacts` request with `q`, `tag`, `dynasty`, `material`, `status`, `limit` params — the server applies them in Mongo and returns the matches.
+- Likes, favorites, and comments live on the artifact document itself, so a single read serves the whole detail view.
 
-Blur precision:
-
-- **Standard site** — rounded to 2 decimal places (~1.1 km)
-- **Protected site** (`isProtected = true`) — rounded to 1 decimal place (~11 km)
+### 5 · Profile (`/profile`)
+- `getServerUser()` server-side guard.
+- Stats (uploads, total likes received, days joined), editable profile card, and a "My Contributions" grid with edit/delete.
 
 ---
 
-## Legacy: Supabase schema (historical — no longer used)
+## Architecture at a glance
 
-> The project originally ran on Supabase PostgreSQL. Those tables and RLS policies are kept below for reference only; **no application code reads them now.**
+```
+┌──────────┐    ┌────────────┐    ┌─────────────────────┐    ┌──────────┐    ┌───────────────┐
+│  Photo   │ →  │ Upload form│ →  │ Zhipu GLM glm-4v-   │ →  │  Mongo   │ →  │ Explore /     │
+│  (data:  │    │ (Leaflet   │    │ flash  +  Nominatim │    │  Mongoose│    │ Profile       │
+│   URL)   │    │  picker)   │    │  (JSON-mode prompt) │    │  models  │    │ (likes,       │
+└──────────┘    └────────────┘    └─────────────────────┘    └──────────┘    │  favorites,   │
+                                                                            │  comments)    │
+                                                                            └───────────────┘
+```
 
-### `profiles`
+Green step = AI vision (Zhipu GLM). Teal step = geocoding (OSM Nominatim). Grey steps = plain data.
 
-| Column | Type | Notes |
-|--------|------|-------|
-| `id` | `uuid` PK | References `auth.users(id)` |
-| `username` | `text` unique | 3–30 chars, alphanumeric + `_-` |
-| `display_name` | `text` | Optional display name |
-| `avatar_url` | `text` | Profile image URL |
-| `bio` | `text` | Short biography |
-| `role` | `user_role` | `user` (default) or `admin` |
-| `created_at` | `timestamptz` | Auto-set on insert |
+---
 
-A trigger on `auth.users` auto-creates a profile row on signup.
+## Project layout
+
+```
+polymercaptial/
+├── public/                         # Static assets
+├── scripts/
+│   └── seed-artifacts-mongo.js     # Idempotent demo-data seeder
+├── src/
+│   ├── actions/                    # Server Actions (mutations)
+│   ├── app/
+│   │   ├── (auth)/                 # No nav: login, register, callback
+│   │   ├── (main)/                 # With navbar/footer: dashboard, explore,
+│   │   │                             profile, artifacts/new
+│   │   ├── api/                    # Route handlers
+│   │   │   ├── analyze-artifact/   # POST — vision analysis (Zhipu GLM)
+│   │   │   ├── artifacts/          # GET/POST artifact list & submit
+│   │   │   ├── upload/             # POST — reserved (501 Not Implemented)
+│   │   │   ├── login | register | logout | me | profile
+│   │   │   ├── favorites/          # Toggle favorite on an artifact
+│   │   │   └── ai/                 # Reserved AI helpers
+│   │   ├── gallery/                # Public gallery
+│   │   ├── globals.css             # Tailwind layers + global animations
+│   │   └── layout.tsx              # Root HTML shell + Toaster
+│   ├── components/
+│   │   ├── ai/                     # AI-analyze button / preview
+│   │   ├── artifacts/              # Upload form, Explore grid, location picker
+│   │   ├── auth/                   # Auth forms
+│   │   ├── layout/                 # Navbar, footer, locale switcher
+│   │   ├── profile/                # Profile view + edit modal
+│   │   └── ui/                     # shadcn/ui primitives, toast
+│   ├── hooks/                      # Client React hooks
+│   ├── lib/
+│   │   ├── auth/                   # jwt, session, password hashing, rate limit
+│   │   ├── vision/                 # Vision provider factory + Zhipu adapter
+│   │   ├── store/                  # Mongoose-backed store (artifacts)
+│   │   ├── mock/                   # Browser-local mock for likes/comments
+│   │   ├── i18n/                   # zh-CN / zh-TW / en dictionaries
+│   │   ├── openai/                 # Legacy client (kept for back-compat)
+│   │   ├── gemini/                 # Deprecated adapter
+│   │   ├── security/               # CSRF / sanitization helpers
+│   │   └── mongodb.ts              # Mongoose connection singleton
+│   ├── models/                     # Mongoose schemas (User, Artifact)
+│   ├── schemas/                    # Zod request schemas
+│   └── types/                      # Shared TypeScript types
+├── supabase/                       # Legacy SQL migrations (no longer applied)
+├── tests/                          # Vitest suites
+└── tmp/                            # Scratch space (PDF generator, scripts)
+```
+
+---
+
+## Data model (MongoDB / Mongoose)
+
+### `users`
+| Field | Type | Notes |
+|-------|------|-------|
+| `email` | string, unique | Login id |
+| `password` | string \| null | bcrypt hash; `null` for OAuth-only users |
+| `displayName` | string | Shown in UI |
+| `username` | string, unique sparse | Optional handle |
+| `role` | `"user" \| "admin"` | Default `user` |
+| `bio`, `avatarUrl` | string | Editable from profile |
+| `githubId` | string, sparse | Reserved for historical accounts |
+| `favorites` | string[] | Cached favorite artifact ids |
+| `createdAt` | Date | For "days joined" stat |
 
 ### `artifacts`
+| Field | Type | Notes |
+|-------|------|-------|
+| `title`, `description`, `imageUrl` | string | `imageUrl` is a `data:` URL written directly from the form |
+| `aiTags`, `manualTags` | string[] | Two buckets — AI suggests, human edits |
+| `era`, `category`, `locationName` | string | AI-suggested / user-edited |
+| `preservationStatus` | enum | `excellent` / `good` / `fair` / `poor` / `critical` / `unknown` (DB); mapped to `Intact / Minor Damage / Severe Degradation / Ruin` at the API edge |
+| `exactLat/Lng` | number \| null | **Server-only**, never returned to clients |
+| `blurredLat/Lng` | number \| null | Auto-computed in `pre('save')` (2 decimals, or 1 if `isProtected`) |
+| `isProtected` | boolean | Tighter blur when `true` |
+| `userId` | ObjectId → User | Indexed; ownership enforced at the API layer |
+| `likes`, `favorites`, `comments` | mixed | First-class on the document so a single read serves the detail view |
+| `createdAt` | Date | For sort + stat |
 
-| Column | Type | Notes |
-|--------|------|-------|
-| `id` | `uuid` PK | Auto-generated |
-| `title` | `text` | Required |
-| `description` | `text` | Optional narrative |
-| `image_url` | `text` | Required — primary photo |
-| `ai_tags` | `text[]` | Tags from OpenAI analysis |
-| `manual_tags` | `text[]` | Contributor-supplied tags |
-| `era` | `text` | Historical period |
-| `preservation_status` | enum | `excellent` · `good` · `fair` · `poor` · `critical` · `unknown` |
-| `exact_lat` | `float8` | **Admin-only** — precise latitude |
-| `exact_lng` | `float8` | **Admin-only** — precise longitude |
-| `blurred_lat` | `float8` | Auto-computed safe latitude |
-| `blurred_lng` | `float8` | Auto-computed safe longitude |
-| `is_protected` | `boolean` | Coarser blur when `true` (~11 km vs ~1.1 km) |
-| `created_at` | `timestamptz` | Auto-set on insert |
-| `user_id` | `uuid` FK | Owner → `profiles(id)` |
-
-### GPS coordinate protection
-
-| Audience | What they see | How |
-|----------|---------------|-----|
-| Anonymous / regular user | `blurred_lat`, `blurred_lng` | Query `artifacts_public` → `display_lat`, `display_lng` |
-| Admin | `exact_lat`, `exact_lng` | Same view returns exact values when `profiles.role = 'admin'` |
-| Server (service role) | All columns on base table | Backend jobs, migrations, admin tooling |
-
-Blur precision (via `blur_coordinates()`):
-
-- **Standard site** — rounded to 2 decimal places (~1.1 km)
-- **Protected site** (`is_protected = true`) — rounded to 1 decimal place (~11 km)
-
-Direct `SELECT` on the `artifacts` base table is revoked for `anon` and `authenticated` roles so exact coordinates cannot leak through the Supabase Data API.
-
-### Row Level Security (RLS)
-
-**`profiles`**
-
-| Policy | Operation | Rule |
-|--------|-----------|------|
-| Profiles are viewable by everyone | `SELECT` | Always allowed |
-| Users can update their own profile | `UPDATE` | `auth.uid() = id` (cannot change own `role`) |
-
-**`artifacts`**
-
-| Policy | Operation | Rule |
-|--------|-----------|------|
-| Artifacts are viewable by everyone | `SELECT` | Always allowed (base table — service role only) |
-| Authenticated users can insert their own artifacts | `INSERT` | `auth.uid() = user_id` |
-| Users can update their own artifacts | `UPDATE` | `auth.uid() = user_id` |
-| Users can delete their own artifacts | `DELETE` | `auth.uid() = user_id` |
-
-Client reads should use the **`artifacts_public`** view, which is granted to both `anon` and `authenticated`.
+A Mongoose `pre('save')` hook guarantees that whenever `exactLat/Lng` are set, `blurredLat/Lng` are derived — so business code never has to remember to blur.
 
 ---
 
-## Conventions
+## Internationalization
 
-- **Imports:** Use `@/` path alias (maps to `src/`).
-- **Components:** Prefer Server Components; add `"use client"` only when hooks or browser APIs are needed.
-- **Forms:** React Hook Form + Zod schemas from `src/schemas/`.
-- **Styling:** Tailwind utility classes; design tokens in `globals.css`.
-- **New UI primitives:** `npx shadcn@latest add <component>` — outputs to `src/components/ui/`.
-- **New migrations:** Add numbered SQL files under `supabase/migrations/`; never edit applied migrations in place.
+- Locale is `zh-CN` (default), `zh-TW`, or `en`, persisted as the `rv_locale` cookie.
+- A server-side helper `localeToZhipuLanguage(locale)` maps the UI locale to the language the vision prompt asks for.
+- Three dictionaries live in `src/lib/i18n/locales.ts` (~860 lines). A locale switcher in the navbar writes the cookie.
 
 ---
 
-## Tags & Upload Limits
+## Roadmap
 
-Contributors attach **manual tags** at submission time; clicking **"AI 分析"** calls Zhipu GLM, which writes **`aiTags`** plus suggested metadata. There is no fixed category enum — discovery is tag-driven.
-
-Upload limit: **10 MB** per image. Accepted formats: JPEG, PNG, WebP.
+Already documented as "Future enhancements" in the project write-up:
+- **Xiaohongshu-style social layer** — public profiles, follow graph, direct messages.
+- **Richer uploads** — multiple images per artifact, short video, pure-text entries. (`/api/upload` is currently a 501 placeholder.)
+- **Stronger auth** — third-party sign-in (Google / WeChat), email verification on sign-up, phone-number verification.
+- **Image hosting** — move from inline `data:` URLs to object storage (S3-compatible) so larger photos don't blow up the document size.
+- **Hardened moderation** — a reported-items queue and an admin review page; `role: "admin"` is already on the user schema.
 
 ---
 
 ## License
 
-Private — all rights reserved unless otherwise specified.
+This is a personal portfolio / summer-project repository. If you'd like to use the code, please open an issue or contact me first.
+
+## Contact
+
+- GitHub: [@raywang7266](https://github.com/raywang7266)
+- Repository: https://github.com/raywang7266/RelicVault-AI

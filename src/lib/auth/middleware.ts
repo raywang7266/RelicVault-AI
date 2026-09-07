@@ -10,7 +10,10 @@ import { SESSION_COOKIE, verifyToken } from "@/lib/auth/jwt";
  * - 受保护路由（需登录）：/（首页上传）、/explore、/artifacts/new、/profile
  *   → 未携带有效会话 cookie 则跳 /login（带 redirectTo）。
  * - 认证页：/login、/register
- *   → 已登录则直接跳 /explore（主浏览页）。
+ *   → 放行（不在中间件层弹走已登录用户）。「已登录则跳 /explore」的判断
+ *     下沉到登录/注册页自身：页面会查库确认会话对应的用户真实存在，
+ *     避免「JWT 有效但用户已不存在（如切换到全新数据库）」时，
+ *     用户被中间件在 /login ↔ /explore 之间反复弹跳、无法重新登录。
  *
  * 仅用 jose 校验 JWT 签名，不查库，保证 edge 运行时可用。
  */
@@ -23,13 +26,6 @@ function redirectToLogin(request: NextRequest, pathname: string) {
   url.pathname = "/login";
   url.search = "";
   url.searchParams.set("redirectTo", pathname);
-  return NextResponse.redirect(url);
-}
-
-function redirectToExplore(request: NextRequest) {
-  const url = request.nextUrl.clone();
-  url.pathname = "/explore";
-  url.search = "";
   return NextResponse.redirect(url);
 }
 
@@ -46,8 +42,6 @@ function isProtectedPath(pathname: string): boolean {
 export async function updateSession(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  const isAuthRoute = AUTH_PATHS.includes(pathname);
-
   const userId = await verifyToken(
     request.cookies.get(SESSION_COOKIE)?.value
   );
@@ -55,7 +49,6 @@ export async function updateSession(request: NextRequest) {
 
   if (isProtectedPath(pathname) && !authed)
     return redirectToLogin(request, pathname);
-  if (isAuthRoute && authed) return redirectToExplore(request);
 
   return NextResponse.next();
 }

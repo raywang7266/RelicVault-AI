@@ -4,6 +4,7 @@ import connectDB from "@/lib/mongodb";
 import { Artifact, type IArtifact, type PreservationDb } from "@/models/Artifact";
 import { User } from "@/models/User";
 import { deriveDynasty } from "@/lib/mock/artifact-store";
+import { ensureDemoData } from "@/lib/store/ensure-demo-data";
 import type {
   Artifact as ArtifactDTO,
   Material,
@@ -248,6 +249,9 @@ function matchesDynasty(era: string, dynasty: string): boolean {
 export async function listArtifactsPublic(
   options: ListOptions = {}
 ): Promise<ArtifactDTO[]> {
+  // 全新空库时自动灌入演示数据（幂等；curator 已存在则直接跳过）。
+  // 放在主读路径上：explore / gallery / 个人中心兜底首次访问即触发。
+  await ensureDemoData();
   await connectDB();
   const filter: Record<string, unknown> = {};
   if (options.ownerId) filter.userId = options.ownerId;
