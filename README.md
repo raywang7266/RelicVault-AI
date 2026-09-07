@@ -1,6 +1,6 @@
 # RelicVault AI
 
-A crowdsourced digital heritage and minor artifact museum powered by AI. Contributors submit photos of artifacts with tags and GPS coordinates; OpenAI enriches submissions with `ai_tags`; Supabase stores users, artifacts, and media. Exact coordinates are never exposed to non-admin users — the database auto-computes blurred coordinates to protect unprotected heritage sites.
+A crowdsourced digital heritage and minor artifact museum powered by AI. Contributors submit photos of artifacts with tags and GPS coordinates; **Zhipu GLM** vision enriches submissions with `aiTags`; **MongoDB (Mongoose)** stores users, artifacts, likes, favorites, and comments. Exact coordinates are never returned to the client — the API only serves blurred coordinates to protect unprotected heritage sites.
 
 ---
 
@@ -11,8 +11,10 @@ A crowdsourced digital heritage and minor artifact museum powered by AI. Contrib
 | Framework | [Next.js 14](https://nextjs.org/) (App Router) |
 | Language | TypeScript |
 | Styling | Tailwind CSS + [shadcn/ui](https://ui.shadcn.com/) (Radix UI) |
-| Database & Auth | [Supabase](https://supabase.com/) (PostgreSQL, RLS, Storage) |
-| AI | [OpenAI API](https://platform.openai.com/) |
+| Database | [MongoDB](https://www.mongodb.com/) via Mongoose |
+| Auth | bcrypt password hashing + JWT session cookie (`jose`, httpOnly) |
+| AI vision | [Zhipu GLM](https://open.bigmodel.cn) `glm-4v-flash` (China-direct, free tier) |
+| Maps | OpenStreetMap Nominatim (geocoding) + Leaflet / react-leaflet |
 | Validation | Zod + React Hook Form |
 | Icons | Lucide React |
 
@@ -24,6 +26,10 @@ A crowdsourced digital heritage and minor artifact museum powered by AI. Contrib
 polymercaptial/
 ├── .github/
 │   └── workflows/              # CI/CD pipelines (lint, typecheck, build)
+│
+├── Dockerfile                  # 3-stage production image (deps → build → run)
+├── docker-compose.yml          # app + MongoDB stack (recommended way to run)
+├── .dockerignore               # keeps node_modules/.next/secrets out of the image
 │
 ├── public/                     # Static assets served at the site root
 │   └── images/                 # Placeholder images, logos, OG assets
@@ -160,14 +166,17 @@ Colocated server-side mutations callable from Client Components without writing 
 
 | Folder | Role |
 |--------|------|
-| `supabase/` | Three clients — browser, server (cookies), and middleware — for correct SSR auth. |
-| `openai/` | OpenAI client initialization and shared prompt helpers. |
+| `mongodb.ts` | Singleton Mongoose connection (cached on `globalThis` so HMR doesn't leak connections). |
+| `store/` | Data-access layer for artifacts & users (DTOs, ownership checks, demo seeding). |
+| `models/` | Mongoose schemas — `User.ts`, `Artifact.ts`. |
+| `vision/` | Vision provider factory + Zhipu GLM adapter (`glm-4v-flash`). |
+| `auth/` | bcrypt hashing, JWT signing/verification (`jose`), session cookie helpers. |
 | `constants.ts` | Single source of truth for categories, upload limits, app name. |
 | `utils.ts` | Class name merging (`cn`) and small pure helpers. |
 
 ### `src/hooks/` — Client Hooks
 
-Encapsulate Supabase queries and React state for artifacts and the current user. Keeps page components thin.
+Encapsulate API calls (`/api/me`, `/api/artifacts`, …) and React state for artifacts and the current user. Keeps page components thin.
 
 ### `src/schemas/` & `src/types/`
 
@@ -201,58 +210,162 @@ Core tables:
 
 ## Getting Started
 
-### Prerequisites
+Pick **one** of two ways to run the project:
 
-- Node.js **≥ 18.17**
-- npm (or pnpm / yarn)
-- A [Supabase](https://supabase.com/) project
-- An [OpenAI](https://platform.openai.com/) API key
+| | Option A — Docker | Option B — Node + MongoDB |
+|---|---|---|
+| What you install | Docker Desktop only | Node.js ≥ 18.17 **and** MongoDB |
+| Commands to get running | 2 | ~6 |
+| Database | bundled (`mongo:7` container) | you run it yourself |
 
-### Installation
+> **Option A is recommended** — it starts MongoDB *and* the app together, so there is no local database to install and nothing else to configure.
+
+---
+
+### Option A — Run everything with Docker (recommended)
+
+#### Prerequisites
+
+- **Docker Desktop** installed **and running** (Windows/macOS: <https://www.docker.com/products/docker-desktop/>). Verify with `docker ps` — if it prints a table (even empty), the daemon is up; if it says *"Cannot connect to the Docker daemon"*, open Docker Desktop first and wait for its tray icon to stop animating.
+- **Your own Zhipu GLM API key** — see [Get a Zhipu GLM API key](#get-a-zhipu-glm-api-key-required). Not included in the repo.
+
+#### Step 1 — create your `.env.local`
 
 ```bash
-# Clone and enter the project
-cd polymercaptial
-
-# Install dependencies
-npm install
-
-# Copy environment template and fill in values
 cp .env.example .env.local
 ```
 
+Open it and fill in two values:
+
+```bash
+# Any long random string — generate one with:
+#   node -e "console.log(require('crypto').randomBytes(48).toString('base64url'))"
+SESSION_SECRET=paste-a-long-random-string-here
+
+# Your own Zhipu key (required for AI image analysis)
+ZHIPU_API_KEY=your-key.your-secret
+```
+
+> Everything else can stay as-is. In particular **you do not need to change `MONGODB_URI`** — `docker-compose.yml` overrides it to `mongodb://mongo:27017/relicvault` automatically, because inside Docker the database lives at the service name `mongo`, not `localhost`.
+
+#### Step 2 — build & start the stack
+
+```bash
+docker compose up -d --build
+```
+
+- First run takes **4–8 minutes** (pulls `node:22-slim` + `mongo:7`, installs dependencies, compiles Next.js). Later runs are seconds thanks to layer caching.
+- `--build` = rebuild the image (use it whenever you change code).
+- `-d` = detached, so you keep your terminal.
+
+#### Step 3 — open the app
+
+**<http://localhost:3000>** → you land on the login page. Register an account, or sign in with the demo account below.
+
+| Service | URL / Port | Notes |
+|---------|-----------|-------|
+| Next.js app | <http://localhost:3000> | the website |
+| MongoDB | `mongodb://localhost:27018` (container port 27017) | port **27018** on purpose — 27017 is usually taken by a locally installed `mongod` |
+
+#### Everyday commands
+
+```bash
+docker compose ps                  # status of both containers
+docker compose logs -f app         # follow app logs (Ctrl+C to quit)
+docker compose logs -f mongo       # follow database logs
+docker compose restart app         # restart after editing .env.local
+docker compose up -d --build       # rebuild + restart after editing code
+docker compose down                # stop everything (data is KEPT)
+docker compose down -v             # stop everything and DELETE the database
+docker compose exec mongo mongosh  # open a Mongo shell inside the container
+```
+
+> **Changed `.env.local`?** The app reads env vars at container start, and `.env.local` is *not* copied into the image — so a plain `docker compose restart app` is enough. Use `up -d --build` only for **code** changes.
+
+> **Where does my data live?** In the named Docker volume `relicvault-mongo-data`. `docker compose down` keeps it; only `down -v` deletes it.
+
+---
+
+### Option B — Run with Node + MongoDB directly
+
+Only pick this if you don't want Docker.
+
+1. Install **Node.js ≥ 18.17** and **MongoDB** (local server, or a free [Atlas](https://www.mongodb.com/cloud/atlas/register) cluster).
+2. Ensure MongoDB is listening on `mongodb://localhost:27017`, then:
+
+```bash
+cp .env.example .env.local   # fill SESSION_SECRET + ZHIPU_API_KEY
+npm install
+npm run dev                  # http://localhost:3000
+```
+
+Collections and indexes are created automatically on first run — there is **no migration step**.
+
+---
+
 ### Environment Variables
 
-| Variable | Description |
-|----------|-------------|
-| `NEXT_PUBLIC_SUPABASE_URL` | Supabase project URL |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase anonymous (public) key |
-| `SUPABASE_SERVICE_ROLE_KEY` | Service role key — **server only**, never expose to the client |
-| `OPENAI_API_KEY` | OpenAI API key for artifact analysis |
-| `NEXT_PUBLIC_APP_URL` | Canonical app URL (e.g. `http://localhost:3000`) |
+Set in `.env.local` (also read by `docker compose` via `env_file`):
 
-### Database Setup
+| Variable | Required? | Description |
+|----------|-----------|-------------|
+| `MONGODB_URI` | **Yes** | Mongo connection string. Local: `mongodb://localhost:27017/relicvault` — **Docker overrides this automatically** to `mongodb://mongo:27017/relicvault` |
+| `SESSION_SECRET` | **Yes** | Random string used to sign the JWT session cookie. Generate: `node -e "console.log(require('crypto').randomBytes(48).toString('base64url'))"` |
+| `ZHIPU_API_KEY` | **Yes** | Your own Zhipu key — powers AI image analysis. See below |
+| `AI_PROVIDER` | optional, default `zhipu` | `zhipu` (default) / `siliconflow` (reserved) / `gemini` (deprecated) |
+| `ZHIPU_MODEL` | optional, default `glm-4v-flash` | Override the vision model |
+| `NEXT_PUBLIC_APP_URL` | optional, default `http://localhost:3000` | Canonical URL for share links |
 
-```bash
-# Apply migrations to your Supabase project (via Supabase CLI)
-supabase db push
+> Supabase / OpenAI keys may still sit in `.env.local` for reference — **no code reads them anymore**. The vision pipeline runs on Zhipu GLM, and storage/auth run on MongoDB.
 
-# Optional: load seed data
-supabase db seed
+### Get a Zhipu GLM API key (required)
 
-# Regenerate TypeScript types from your schema
-npm run db:types
-```
+AI image analysis calls **Zhipu GLM `glm-4v-flash`** through the [Zhipu Open Platform](https://open.bigmodel.cn). **Each user must apply for their own key (~2 minutes, free):**
 
-### Development
+1. Sign up / log in at <https://open.bigmodel.cn> (phone or email; new accounts get free tokens).
+2. Complete **real-name verification** (实名认证) if prompted.
+3. Open the console → **API Keys** (direct link: <https://open.bigmodel.cn/usercenter/apikeys>).
+4. Click **创建 API Key**, name it anything, then **copy it** — it is shown only once.
+5. Paste it into `.env.local` as `ZHIPU_API_KEY=...`.
+6. Restart: `docker compose restart app` (or restart `npm run dev`).
 
-```bash
-npm run dev      # Start dev server at http://localhost:3000
-npm run build    # Production build
-npm run start    # Run production build locally
-npm run lint     # ESLint
-npm run typecheck # TypeScript without emit
-```
+**If you skip it:** the site still runs — browsing, login, exploring all work — but clicking **"AI 分析"** on the upload form fails with `未配置 ZHIPU_API_KEY`. You can still fill the form manually, but the AI feature is dead.
+
+**Cost:** `glm-4v-flash` is permanently free on Zhipu's platform.
+
+### Demo data (seeded automatically)
+
+On the **very first read against an empty database**, the app inserts 12 sample artifacts owned by a demo `curator` account. The dataset ships in code (`src/lib/store/demo-data.ts`) with fixed titles, tags, images, and creation dates, so **every install sees identical demo content**.
+
+Skip registration and log in with:
+
+| Field | Value |
+|-------|-------|
+| email | `curator@relicvault.app` |
+| password | `RelicVault@2026` |
+
+The seeder is idempotent — it runs only when the demo account is missing, so deleting demo artifacts never triggers a re-insert. (`node scripts/seed-artifacts-mongo.js` does the same thing manually.)
+
+### Troubleshooting
+
+| Symptom | Fix |
+|---------|-----|
+| `Cannot connect to the Docker daemon` | Start Docker Desktop and wait until it reports *running* |
+| `port is already allocated` (27017 / 3000) | Another process owns the port. Stop your local `mongod`, or change the host side in `docker-compose.yml` (e.g. `"27019:27017"`) |
+| `Conflict. The container name "/relicvault-mongo" is already in use` | A container from an earlier `docker run` still exists: `docker rm -f relicvault-mongo`, then `docker compose up -d` |
+| Upload form shows `未配置 ZHIPU_API_KEY` | `ZHIPU_API_KEY` missing or wrong in `.env.local`; fix it then `docker compose restart app` |
+| Login button bounces you to `/explore` | Stale session cookie from an older database. Hard-refresh (Ctrl+Shift+R), or clear the `rv_session` cookie |
+| Fresh DB shows nothing | Hit <http://localhost:3000/explore> once — auto-seeding runs on first read |
+
+### Scripts
+
+| Command | What it does |
+|---------|--------------|
+| `npm run dev` | Dev server (hot reload) at <http://localhost:3000> |
+| `npm run build` | Production build |
+| `npm run start` | Serve the production build locally |
+| `npm run lint` | ESLint (next/core-web-vitals) |
+| `npm run typecheck` | `tsc --noEmit` |
 
 ---
 
@@ -260,27 +373,57 @@ npm run typecheck # TypeScript without emit
 
 ```
 ┌─────────────┐     ┌──────────────────┐     ┌─────────────┐
-│   Browser   │────▶│  Next.js App     │────▶│  Supabase   │
-│  (React)    │◀────│  (RSC + Actions) │◀────│  (DB/Auth/  │
-└─────────────┘     └────────┬─────────┘     │   Storage)  │
-                             │               └─────────────┘
+│   Browser   │────▶│  Next.js App     │────▶│  MongoDB    │
+│  (React)    │◀────│  (RSC + Actions) │◀────│  (Mongoose) │
+└─────────────┘     └────────┬─────────┘     └─────────────┘
+                             │
                              ▼
                       ┌─────────────┐
-                      │   OpenAI    │
-                      │  (Analysis) │
+                      │ Zhipu GLM   │
+                      │ glm-4v-flash│
+                      │ (Analysis)  │
                       └─────────────┘
 ```
 
-1. **Browse** — `(main)/explore` reads artifacts via the `artifacts_public` view (blurred GPS for non-admins).
-2. **Submit** — Contributors upload images via `/api/upload`, then insert rows into `artifacts` with `exact_lat` / `exact_lng`.
-3. **Blur** — A database trigger auto-computes `blurred_lat` / `blurred_lng` on every insert/update.
-4. **Analyze** — `/api/ai/analyze` sends the image to OpenAI; results are stored in `artifacts.ai_tags`.
+With Docker, the app and MongoDB run as two containers on a private network:
+
+```
+localhost:3000 ──▶ relicvault-app  ──(mongo:27017)──▶ relicvault-mongo
+                        │                                   │
+                        └──── relicvault-mongo-data ◀───────┘  (named volume, persists data)
+```
+
+1. **Browse** — `(main)/explore` reads artifacts via `src/lib/store/artifacts.ts`; the API layer (`/api/artifacts`) only ever returns blurred coordinates.
+2. **Submit** — Contributors upload a photo, then insert a document into the `artifacts` collection with `exactLat` / `exactLng`.
+3. **Blur** — The store layer computes `blurredLat` / `blurredLng` on every write; exact coordinates are never serialized to the client.
+4. **Analyze** — `/api/analyze-artifact` sends the image to Zhipu GLM; results are stored as `aiTags` plus suggested title / era / category / description.
 
 ---
 
-## Database Schema
+## Data Model
 
-Migration file: `supabase/migrations/001_initial_schema.sql`
+Schema definitions live in `src/models/` and are applied by Mongoose at runtime (no migrations):
+
+- **`src/models/User.ts`** — `username`, `email`, `passwordHash` (bcrypt), `displayName`, `avatarUrl`, `bio`, `role`, timestamps.
+- **`src/models/Artifact.ts`** — `title`, `description`, `imageUrl`, `aiTags[]`, `manualTags[]`, `era`, `category`, `locationName`, `preservationStatus`, `exactLat` / `exactLng` (sensitive, server-only), `blurredLat` / `blurredLng`, `isProtected`, `userId`, `likes[]`, `favorites[]`, `comments[]`, `createdAt`.
+
+### GPS coordinate protection
+
+| Audience | What they see | How |
+|----------|---------------|-----|
+| Any client (anonymous or logged in) | `blurredLat`, `blurredLng` | The DTO layer never serializes `exactLat` / `exactLng` |
+| Server | All fields | Used internally for maps and ownership checks |
+
+Blur precision:
+
+- **Standard site** — rounded to 2 decimal places (~1.1 km)
+- **Protected site** (`isProtected = true`) — rounded to 1 decimal place (~11 km)
+
+---
+
+## Legacy: Supabase schema (historical — no longer used)
+
+> The project originally ran on Supabase PostgreSQL. Those tables and RLS policies are kept below for reference only; **no application code reads them now.**
 
 ### `profiles`
 
@@ -366,7 +509,7 @@ Client reads should use the **`artifacts_public`** view, which is granted to bot
 
 ## Tags & Upload Limits
 
-Contributors attach **manual tags** at submission time; OpenAI writes **ai tags** after analysis. There is no fixed category enum — discovery is tag-driven.
+Contributors attach **manual tags** at submission time; clicking **"AI 分析"** calls Zhipu GLM, which writes **`aiTags`** plus suggested metadata. There is no fixed category enum — discovery is tag-driven.
 
 Upload limit: **10 MB** per image. Accepted formats: JPEG, PNG, WebP.
 

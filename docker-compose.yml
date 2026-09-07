@@ -1,0 +1,55 @@
+# RelicVault AI — full stack (app + MongoDB) in Docker
+#
+# Quick start:
+#   docker compose up -d --build     # build the image and start both services
+#   docker compose logs -f app       # follow app logs
+#   docker compose down              # stop (data kept in the named volume)
+#   docker compose down -v           # stop AND wipe the database
+#
+# App:   http://localhost:3000
+# Mongo: mongodb://localhost:27018  (host port 27018 — 27017 is usually taken by a
+#        locally installed mongod; the app itself talks to "mongo:27017" internally)
+
+services:
+  mongo:
+    image: mongo:7
+    container_name: relicvault-mongo
+    restart: unless-stopped
+    ports:
+      - "27018:27017"
+    volumes:
+      - relicvault-mongo-data:/data/db
+    healthcheck:
+      # mongo:7 ships with mongosh, so a real ping beats a plain TCP check
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping')"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 15s
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: relicvault-app
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    env_file:
+      - .env.local
+    environment:
+      # Inside the compose network "localhost" is the container itself —
+      # the database lives at the service name "mongo".
+      MONGODB_URI: mongodb://mongo:27017/relicvault
+      NEXT_PUBLIC_APP_URL: http://localhost:3000
+      NODE_ENV: production
+    depends_on:
+      mongo:
+        condition: service_healthy
+
+volumes:
+  relicvault-mongo-data:
+    # Pin the exact volume name so existing data (e.g. from an earlier
+    # `docker run -v relicvault-mongo-data:/data/db mongo:7`) is reused
+    # instead of getting a project-prefixed volume; auto-created if absent.
+    name: relicvault-mongo-data
