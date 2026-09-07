@@ -1,5 +1,6 @@
 # RelicVault AI — 项目长期记忆
 
+- **Docker 一键跑起来（2026-09-07 起）**：根目录有 `Dockerfile` + `docker-compose.yml` + `.dockerignore`。`docker compose up -d --build` 起 `relicvault-app`(3000) + `relicvault-mongo`(宿主端口 **27018**，因 27017 常被本机 mongod 占用)。app 用 `env_file: .env.local` + `MONGODB_URI=mongodb://mongo:27017/relicvault` 覆盖；数据卷固定名 `relicvault-mongo-data` 以免被 compose 加项目前缀。**`next build` 不需要连数据库**（root layout 读 cookies → 全站 ƒ Dynamic，只有 `/icon.svg` 静态）。改代码后 `up -d --build`；仅改 `.env.local` 则 `docker compose restart app` 即可。容器名冲突：`docker rm -f relicvault-mongo`（不会删命名卷，数据安全）。
 - **项目**：众包数字遗产 / 民间文物博物馆（Next.js 14 App Router + MongoDB/Mongoose + shadcn/ui + Tailwind）。当前 `.env.local` 配置 MongoDB `MONGODB_URI`（持久化层）+ SESSION_SECRET；Supabase 凭证仍保留但**已不再被任何代码引用**（2026-08 早期已完成从 Supabase 到 MongoDB 的切换）。所有认证（bcrypt+JWT cookie）+ 数据持久化**全部走 MongoDB**。
 - **目录约定**：`src/app/(auth)` 无导航栏（登录/注册/回调）；`src/app/(main)` 带 Navbar + Footer；业务改动优先放 `src/components`、`src/actions`、`src/lib`、`src/hooks`、`src/schemas`。
 - **Supabase 字段映射**：DB schema 与前端 Artifact 类型不一致——

@@ -1,0 +1,39 @@
+# Dependencies & build output — copied/installed inside the image instead
+node_modules
+.next
+out
+
+# VCS & editor
+.git
+.gitignore
+.github
+.vscode
+
+# Local tooling / caches
+.workbuddy
+.mongodb-data
+tmp
+record_temp
+tests
+__tests__
+docs
+coverage
+*.tsbuildinfo
+tw-out.css
+
+# Secrets — injected at runtime via env_file, never baked into the image
+.env.local
+.env
+.env.*
+!.env.example
+
+# Docker files themselves
+Dockerfile
+docker-compose.yml
+.dockerignore
+
+# Misc local artifacts
+*.md
+poly_test*.jpg
+prompt.png
+reminder.txt
