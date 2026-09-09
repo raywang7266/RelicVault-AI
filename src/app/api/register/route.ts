@@ -53,6 +53,14 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  // 新用户默认关注官方策展人，让「关注」流首登即有内容（失败不影响注册）
+  try {
+    const { autoFollowCurator } = await import("@/lib/store/social");
+    if (result.user?.id) await autoFollowCurator(result.user.id);
+  } catch {
+    /* ignore */
+  }
+
   return NextResponse.json({
     ok: true,
     user: result.user,

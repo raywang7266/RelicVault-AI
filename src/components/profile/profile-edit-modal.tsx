@@ -26,6 +26,13 @@ export default function ProfileEditModal({
   const [bio, setBio] = useState(initial.bio);
   const [avatarUrl, setAvatarUrl] = useState(initial.avatarUrl ?? "");
   const [avatarError, setAvatarError] = useState<string | null>(null);
+  // 隐私设置：默认公开（与后端 DEFAULT_PRIVACY 一致）
+  const [showFollowing, setShowFollowing] = useState(
+    initial.privacy?.showFollowing ?? true
+  );
+  const [showFollowers, setShowFollowers] = useState(
+    initial.privacy?.showFollowers ?? true
+  );
   const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -34,6 +41,8 @@ export default function ProfileEditModal({
       setBio(initial.bio);
       setAvatarUrl(initial.avatarUrl ?? "");
       setAvatarError(null);
+      setShowFollowing(initial.privacy?.showFollowing ?? true);
+      setShowFollowers(initial.privacy?.showFollowers ?? true);
     }
   }, [open, initial]);
 
@@ -70,6 +79,10 @@ export default function ProfileEditModal({
       nickname: trimmed,
       bio: bio.trim(),
       avatarUrl: avatarUrl.trim() || undefined,
+      privacy: {
+        showFollowing,
+        showFollowers,
+      },
     });
   };
 
@@ -81,17 +94,17 @@ export default function ProfileEditModal({
       aria-modal="true"
     >
       <div
-        className="w-full max-w-md rounded-2xl border border-[#E6DFC6] bg-[#FAF7F2] p-6 shadow-xl"
+        className="w-full max-w-md rounded-2xl border border-[var(--border-soft)] bg-[var(--panel)] p-6 shadow-xl"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-4 flex items-center justify-between">
-          <h2 className="font-serif text-lg font-bold text-[#2C221E]">
+          <h2 className="font-serif text-lg font-bold text-[var(--ink)]">
             {t("editProfile.title")}
           </h2>
           <button
             type="button"
             onClick={onClose}
-            className="rounded-full p-1 text-[#8C7E72] hover:bg-[#EFE6D5]"
+            className="rounded-full p-1 text-[var(--muted-3)] hover:bg-[var(--chip-2)]"
             aria-label={t("common.close")}
           >
             <X className="h-5 w-5" />
@@ -101,11 +114,11 @@ export default function ProfileEditModal({
         <div className="space-y-4">
           {/* 头像：本地上传 */}
           <div>
-            <label className="mb-1.5 block text-sm font-medium text-[#3E3228]">
+            <label className="mb-1.5 block text-sm font-medium text-[var(--brown)]">
               {t("editProfile.avatar")}
             </label>
             <div className="flex items-center gap-4">
-              <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-full border-2 border-[#D6CBBA] bg-[#EFE6D5]">
+              <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-full border-2 border-[var(--border)] bg-[var(--chip-2)]">
                 {avatarUrl ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img
@@ -114,7 +127,7 @@ export default function ProfileEditModal({
                     className="h-full w-full object-cover"
                   />
                 ) : (
-                  <ImageIcon className="h-7 w-7 text-[#8C6D46]" />
+                  <ImageIcon className="h-7 w-7 text-[var(--bronze)]" />
                 )}
               </div>
               <div className="flex flex-col gap-2">
@@ -128,7 +141,7 @@ export default function ProfileEditModal({
                 <button
                   type="button"
                   onClick={() => fileRef.current?.click()}
-                  className="inline-flex items-center gap-1.5 rounded-lg border border-[#D6CBBA] px-3 py-1.5 text-sm font-medium text-[#5C4831] transition hover:bg-[#EFE6D5]"
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--border)] px-3 py-1.5 text-sm font-medium text-[var(--bronze-ink)] transition hover:bg-[var(--chip-2)]"
                 >
                   <Upload className="h-4 w-4" /> {t("editProfile.uploadAvatar")}
                 </button>
@@ -146,26 +159,26 @@ export default function ProfileEditModal({
             {avatarError && (
               <p className="mt-1.5 text-xs text-[#9B2C2C]">{avatarError}</p>
             )}
-            <p className="mt-1 text-[11px] text-[#9C8E80]">
+            <p className="mt-1 text-[calc(11px*var(--font-scale))] text-[var(--muted-2)]">
               {t("editProfile.avatarHint")}
             </p>
           </div>
 
           <div>
-            <label className="mb-1.5 block text-sm font-medium text-[#3E3228]">
+            <label className="mb-1.5 block text-sm font-medium text-[var(--brown)]">
               {t("editProfile.nickname")}
             </label>
             <input
               value={nickname}
               onChange={(e) => setNickname(e.target.value)}
               maxLength={20}
-              className="w-full rounded-lg border border-[#D6CBBA] bg-white px-3 py-2 text-sm text-[#2C221E] focus:outline-none focus:ring-2 focus:ring-[#8C6D46]/50"
+              className="w-full rounded-lg border border-[var(--border)] bg-white px-3 py-2 text-sm text-[var(--ink)] focus:outline-none focus:ring-2 focus:ring-[var(--bronze)]"
               placeholder={t("editProfile.nicknamePlaceholder")}
             />
           </div>
 
           <div>
-            <label className="mb-1.5 block text-sm font-medium text-[#3E3228]">
+            <label className="mb-1.5 block text-sm font-medium text-[var(--brown)]">
               {t("editProfile.bio")}
             </label>
             <textarea
@@ -173,11 +186,31 @@ export default function ProfileEditModal({
               onChange={(e) => setBio(e.target.value)}
               rows={3}
               maxLength={140}
-              className="w-full resize-none rounded-lg border border-[#D6CBBA] bg-white px-3 py-2 text-sm text-[#2C221E] focus:outline-none focus:ring-2 focus:ring-[#8C6D46]/50"
+              className="w-full resize-none rounded-lg border border-[var(--border)] bg-white px-3 py-2 text-sm text-[var(--ink)] focus:outline-none focus:ring-2 focus:ring-[var(--bronze)]"
               placeholder={t("editProfile.bioPlaceholder")}
             />
-            <p className="mt-1 text-right text-[11px] text-[#9C8E80]">
+            <p className="mt-1 text-right text-[calc(11px*var(--font-scale))] text-[var(--muted-2)]">
               {bio.length}/140
+            </p>
+          </div>
+
+          {/* 隐私设置 */}
+          <div className="rounded-xl border border-[var(--border-soft)] bg-[var(--panel)] p-3">
+            <p className="mb-2 text-sm font-medium text-[var(--brown)]">
+              {t("connections.privacyTitle")}
+            </p>
+            <PrivacyToggle
+              label={t("connections.privacyShowFollowing")}
+              checked={showFollowing}
+              onChange={setShowFollowing}
+            />
+            <PrivacyToggle
+              label={t("connections.privacyShowFollowers")}
+              checked={showFollowers}
+              onChange={setShowFollowers}
+            />
+            <p className="mt-1 text-[calc(11px*var(--font-scale))] text-[var(--muted-2)]">
+              {t("connections.privacyHint")}
             </p>
           </div>
         </div>
@@ -186,7 +219,7 @@ export default function ProfileEditModal({
           <button
             type="button"
             onClick={onClose}
-            className="rounded-lg border border-[#D6CBBA] px-4 py-2 text-sm font-medium text-[#5C4831] hover:bg-[#EFE6D5]"
+            className="rounded-lg border border-[var(--border)] px-4 py-2 text-sm font-medium text-[var(--bronze-ink)] hover:bg-[var(--chip-2)]"
           >
             {t("common.cancel")}
           </button>
@@ -194,12 +227,43 @@ export default function ProfileEditModal({
             type="button"
             onClick={handleSave}
             disabled={!nickname.trim()}
-            className="rounded-lg bg-[#8C6D46] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#78592F] disabled:opacity-50"
+            className="rounded-lg bg-[var(--bronze)] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[var(--bronze-deep)] disabled:opacity-50"
           >
             {t("common.save")}
           </button>
         </div>
       </div>
     </div>
+  );
+}
+
+function PrivacyToggle({
+  label,
+  checked,
+  onChange,
+}: {
+  label: string;
+  checked: boolean;
+  onChange: (v: boolean) => void;
+}) {
+  return (
+    <label className="flex cursor-pointer items-center justify-between py-1.5">
+      <span className="text-sm text-[var(--bronze-ink)]">{label}</span>
+      <button
+        type="button"
+        role="switch"
+        aria-checked={checked}
+        onClick={() => onChange(!checked)}
+        className={`relative h-5 w-9 shrink-0 rounded-full transition-colors ${
+          checked ? "bg-[var(--bronze)]" : "bg-[var(--border)]"
+        }`}
+      >
+        <span
+          className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform ${
+            checked ? "left-0.5 translate-x-4" : "left-0.5"
+          }`}
+        />
+      </button>
+    </label>
   );
 }

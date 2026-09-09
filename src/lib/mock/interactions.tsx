@@ -51,8 +51,9 @@ interface InteractionsContextValue {
   isBusy: (id: string) => boolean;
   toggleLike: (id: string) => Promise<void>;
   toggleFavorite: (id: string) => Promise<void>;
-  addComment: (id: string, text: string) => Promise<boolean>;
+  addComment: (id: string, text: string, parentId?: string | null) => Promise<boolean>;
   deleteComment: (id: string, commentId: string) => Promise<boolean>;
+  toggleCommentLike: (id: string, commentId: string) => Promise<void>;
 }
 
 /**
@@ -173,14 +174,15 @@ export function InteractionsProvider({ children }: { children: ReactNode }) {
     }
   }, [states]);
 
-  const addComment = useCallback(async (id: string, text: string): Promise<boolean> => {
-    try {
-      const res = await fetch(`/api/artifacts/${encodeURIComponent(id)}/comments`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "Cache-Control": "no-store" },
-        cache: "no-store",
-        body: JSON.stringify({ text }),
-      });
+  const addComment = useCallback(
+    async (id: string, text: string, parentId?: string | null): Promise<boolean> => {
+      try {
+        const res = await fetch(`/api/artifacts/${encodeURIComponent(id)}/comments`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "Cache-Control": "no-store" },
+          cache: "no-store",
+          body: JSON.stringify({ text, parentId: parentId ?? null }),
+        });
       if (!res.ok) {
         const e = (await res.json().catch(() => ({}))) as { error?: string };
         throw new Error(e.error || "评论失败");
@@ -219,6 +221,39 @@ export function InteractionsProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  const toggleCommentLike = useCallback(
+    async (id: string, commentId: string): Promise<void> => {
+      try {
+        const res = await fetch(
+          `/api/artifacts/${encodeURIComponent(id)}/comments/${encodeURIComponent(
+            commentId
+          )}/like`,
+          { method: "POST", headers: { "Cache-Control": "no-store" }, cache: "no-store" }
+        );
+        if (!res.ok) return;
+        const data = (await res.json()) as { likedByMe: boolean; likes: number };
+        setStates((prev) => {
+          const s = prev[id];
+          if (!s) return prev;
+          return {
+            ...prev,
+            [id]: {
+              ...s,
+              comments: s.comments.map((c) =>
+                c.id === commentId
+                  ? { ...c, likedByMe: data.likedByMe, likes: data.likes }
+                  : c
+              ),
+            },
+          };
+        });
+      } catch {
+        /* 评论点赞失败静默忽略 */
+      }
+    },
+    []
+  );
+
   // 关键：返回对象用 useMemo 包裹，避免每次渲染生成全新引用。
   // 否则把该对象放进调用方的 useEffect 依赖时，会因引用变化触发无限重渲染循环。
   const value = useMemo<InteractionsContextValue>(
@@ -231,8 +266,9 @@ export function InteractionsProvider({ children }: { children: ReactNode }) {
       toggleFavorite,
       addComment,
       deleteComment,
+      toggleCommentLike,
     }),
-    [states, seed, get, isBusy, toggleLike, toggleFavorite, addComment, deleteComment]
+    [states, seed, get, isBusy, toggleLike, toggleFavorite, addComment, deleteComment, toggleCommentLike]
   );
 
   return (

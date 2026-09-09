@@ -28,7 +28,7 @@ export default function SmartImage({
   if (failed) {
     return (
       <div
-        className={`flex items-center justify-center bg-gradient-to-br from-[#E9DFC8] to-[#D8C7A3] text-[#8C6D46] font-serif ${className}`}
+        className={`flex items-center justify-center bg-gradient-to-br from-[var(--chip-2)] to-[var(--border)] text-[var(--bronze)] font-serif ${className}`}
         aria-label={alt}
       >
         <span className="text-4xl opacity-70 select-none">{fallbackLabel}</span>

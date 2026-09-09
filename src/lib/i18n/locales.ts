@@ -45,6 +45,52 @@ const zhCN: Dict = {
   "common.all": "全部",
   "common.other": "其他",
 
+  // ---------- 通知 ----------
+  "notif.bell": "通知",
+  "notif.title": "通知",
+  "notif.empty": "还没有新通知",
+  "notif.postedArtifact": "{name} 发布了新文物《{title}》",
+  "notif.commented": "{name} 评论了《{title}》",
+  "notif.replied": "{name} 回复了你在《{title}》中的评论",
+  "notif.followed": "{name} 关注了你",
+
+  // ---------- 社交 ----------
+  "social.loginToFollow": "登录后即可关注",
+  "social.followFailed": "关注操作失败，请重试",
+  "social.userNotFound": "用户不存在",
+  "social.curator": "官方策展人",
+  "social.followers": "粉丝",
+  "social.following": "关注",
+  "social.artifacts": "藏品",
+  "social.thisIsYou": "这是你",
+  "social.follow": "关注",
+  "social.uploadsOf": "{name} 的藏品",
+  "social.noUploads": "TA 还没有上传文物",
+
+  // ---------- 关注 / 粉丝列表 ----------
+  "connections.title": "关注与粉丝",
+  "connections.following": "关注",
+  "connections.followers": "粉丝",
+  "connections.backToProfile": "返回主页",
+  "connections.searchPlaceholder": "搜索用户",
+  "connections.emptyFollowing": "还没有关注任何人",
+  "connections.emptyFollowers": "还没有粉丝",
+  "connections.privateFollowing": "TA 未公开关注列表",
+  "connections.privateFollowers": "TA 未公开粉丝列表",
+  "connections.privateHint": "对方已设置隐私，仅本人可见",
+  "connections.notFound": "用户不存在",
+  "connections.mutual": "互相关注",
+  "connections.followsYou": "关注了你",
+  "connections.you": "你",
+  "connections.viewProfile": "查看主页",
+  "connections.artifacts": "{n} 件藏品",
+  "connections.loadMore": "加载更多",
+  "connections.privacyTitle": "隐私设置",
+  "connections.privacyShowFollowing": "公开我的关注列表",
+  "connections.privacyShowFollowers": "公开我的粉丝列表",
+  "connections.privacyHint": "关闭后，他人将无法查看你的关注 / 粉丝列表（你自己始终可看）。",
+  "connections.privacySaved": "隐私设置已保存",
+
   // ---------- 领域分类（展示层三语；value 仍为原始枚举）----------
   "opt.其他": "其他",
   "opt.唐": "唐",
@@ -71,9 +117,45 @@ const zhCN: Dict = {
 
   // ---------- 页脚 ----------
   "footer.tagline": "众包数字遗产与民间文物博物馆",
+  "footer.explore": "探索",
+  "footer.about": "关于",
+  "footer.aboutText": "RelicVault AI 用人工智能助力每一个人记录、鉴定与传承身边的民间文物。",
 
   // ---------- 语言切换 ----------
   "lang.label": "语言",
+
+  // ---------- 字号调节（无障碍） ----------
+  "a11y.fontSize": "字号",
+  "a11y.fontSize.small": "小",
+  "a11y.fontSize.default": "标准",
+  "a11y.fontSize.large": "大",
+  "a11y.fontSize.xl": "特大",
+  "a11y.fontSize.xxl": "超大",
+  "a11y.fontSize.xxxl": "极大",
+  "a11y.theme": "主题",
+  "a11y.theme.dark": "夜间",
+  "a11y.theme.light": "白天",
+
+  // ---------- 浮窗小助手 ----------
+  "assistant.title": "文遗小助手",
+  "assistant.open": "打开小助手",
+  "assistant.minimize": "收起",
+  "assistant.hide": "隐藏小助手",
+  "assistant.summon": "召唤小助手",
+  "assistant.relatedQueries": "你可能想问",
+  "assistant.inputPlaceholder": "问我关于文物或这个页面的问题…",
+  "assistant.send": "发送",
+  "assistant.greeting": "你好！我是文遗小助手。可以问我文物、历史、文化遗产，或当前页面的用法。点上面的联想词，我能直接为你讲解～",
+  "assistant.error": "小助手暂时无法回复，请稍后再试。",
+  "assistant.errorTimeout": "联网检索耗时较长被中断，请换个问法或稍后再试。",
+  "assistant.errorRateLimit": "请求太频繁了，请稍等几秒再试。",
+  "assistant.errorNetwork": "网络连接异常，请检查网络后重试。",
+  "assistant.resetNotice": "已切换到新页面，对话已重置，现在围绕当前内容回答",
+  "assistant.currentPage": "当前：{title}",
+  "assistant.references": "参考资料",
+  "assistant.refOnSite": "站内",
+  "assistant.refSearch": "搜索",
+  "assistant.referencesHint": "资料来源由 AI 联网检索生成，建议点击核对原文",
 
   // ---------- 登录 / 注册页 ----------
   "login.title": "登录账号",
@@ -103,6 +185,7 @@ const zhCN: Dict = {
 
   // ---------- 探索页 ----------
   "explore.title": "探索藏品",
+  "explore.eyebrow": "数字遗产 · 民间文物",
   "explore.subtitle": "浏览由社区贡献的文物与遗迹档案。支持名称搜索、#标签检索与多维筛选。",
   "explore.searchPlaceholder": "搜索文物名称，或输入 #标签 按标签过滤…",
   "explore.clearSearch": "清空搜索",
@@ -123,6 +206,11 @@ const zhCN: Dict = {
   "explore.mapEmptyHint": "调整搜索词或筛选条件后再试。",
   "explore.errorTitle": "加载失败",
   "explore.errorDesc": "加载典藏阁失败：{msg}",
+  "explore.tabRecommended": "推荐",
+  "explore.tabFollowing": "关注",
+  "explore.emptyFollowing": "你关注的人的最新动态会显示在这里。",
+  "explore.emptyFollowingOf": "{name} 还没有上传文物。",
+  "explore.discoverPeople": "去发现更多收藏家",
 
   // ---------- 个人中心 ----------
   "profile.editProfile": "编辑资料",
@@ -183,6 +271,9 @@ const zhCN: Dict = {
   "detail.deleteDesc": "文物档案已移除",
   "detail.deleteFailed": "删除失败",
   "detail.commentFailed": "评论失败",
+  "detail.reply": "回复",
+  "detail.replyPlaceholder": "回复 {name}…",
+  "detail.likeComment": "赞这条评论",
 
   // ---------- 上传表单 ----------
   "upload.title": "数字文物建档登记",
@@ -195,6 +286,11 @@ const zhCN: Dict = {
   "upload.imageHint": "支持高清晰度 JPG, PNG, WebP 格式（文件大小不超过 10MB）",
   "upload.changePhoto": "点击或拖拽可更换照片",
   "upload.removeImage": "移除图片",
+  "upload.addImage": "追加图片",
+  "upload.cover": "封面",
+  "upload.setCover": "设为封面",
+  "upload.imageCount": "已选图片",
+  "upload.errMaxImages": "最多上传 6 张图片（单张不超过 10MB）",
   "upload.aiEngine": "文物 AI 智绘引擎",
   "upload.aiEngineDesc": "一键分析图像并自动补充器物名称、年代、门类与分类标签",
   "upload.fillSample": "填充示例数据",
@@ -305,6 +401,52 @@ const zhTW: Dict = {
   "common.all": "全部",
   "common.other": "其他",
 
+  // ---------- 通知 ----------
+  "notif.bell": "通知",
+  "notif.title": "通知",
+  "notif.empty": "還沒有新通知",
+  "notif.postedArtifact": "{name} 發佈了新文物《{title}》",
+  "notif.commented": "{name} 評論了《{title}》",
+  "notif.replied": "{name} 回覆了你在《{title}》中的評論",
+  "notif.followed": "{name} 關注了你",
+
+  // ---------- 社交 ----------
+  "social.loginToFollow": "登入後即可關注",
+  "social.followFailed": "關注操作失敗，請重試",
+  "social.userNotFound": "用戶不存在",
+  "social.curator": "官方策展人",
+  "social.followers": "粉絲",
+  "social.following": "關注",
+  "social.artifacts": "藏品",
+  "social.thisIsYou": "這是你",
+  "social.follow": "關注",
+  "social.uploadsOf": "{name} 的藏品",
+  "social.noUploads": "TA 還沒有上傳文物",
+
+  // ---------- 關注 / 粉絲列表 ----------
+  "connections.title": "關注與粉絲",
+  "connections.following": "關注",
+  "connections.followers": "粉絲",
+  "connections.backToProfile": "返回主頁",
+  "connections.searchPlaceholder": "搜尋用戶",
+  "connections.emptyFollowing": "還沒有關注任何人",
+  "connections.emptyFollowers": "還沒有粉絲",
+  "connections.privateFollowing": "TA 未公開關注列表",
+  "connections.privateFollowers": "TA 未公開粉絲列表",
+  "connections.privateHint": "對方已設置隱私，僅本人可見",
+  "connections.notFound": "用戶不存在",
+  "connections.mutual": "互相關注",
+  "connections.followsYou": "關注了你",
+  "connections.you": "你",
+  "connections.viewProfile": "查看主頁",
+  "connections.artifacts": "{n} 件藏品",
+  "connections.loadMore": "加載更多",
+  "connections.privacyTitle": "隱私設置",
+  "connections.privacyShowFollowing": "公開我的關注列表",
+  "connections.privacyShowFollowers": "公開我的粉絲列表",
+  "connections.privacyHint": "關閉後，他人將無法查看你的關注 / 粉絲列表（你自己始終可看）。",
+  "connections.privacySaved": "隱私設置已保存",
+
   // ---------- 領域分類（展示層三語；value 仍為原始列舉）----------
   "opt.其他": "其他",
   "opt.唐": "唐",
@@ -331,9 +473,45 @@ const zhTW: Dict = {
 
   // ---------- 頁腳 ----------
   "footer.tagline": "眾包數位遺產與民間文物博物館",
+  "footer.explore": "探索",
+  "footer.about": "關於",
+  "footer.aboutText": "RelicVault AI 用人工智慧協助每個人記錄、鑑定與傳承身邊的民間文物。",
 
   // ---------- 語言切換 ----------
   "lang.label": "語言",
+
+  // ---------- 字号调节（无障碍） ----------
+  "a11y.fontSize": "字號",
+  "a11y.fontSize.small": "小",
+  "a11y.fontSize.default": "標準",
+  "a11y.fontSize.large": "大",
+  "a11y.fontSize.xl": "特大",
+  "a11y.fontSize.xxl": "超大",
+  "a11y.fontSize.xxxl": "極大",
+  "a11y.theme": "主題",
+  "a11y.theme.dark": "夜間",
+  "a11y.theme.light": "白天",
+
+  // ---------- 浮窗小助手 ----------
+  "assistant.title": "文遺小助手",
+  "assistant.open": "打開小助手",
+  "assistant.minimize": "收起",
+  "assistant.hide": "隱藏小助手",
+  "assistant.summon": "召喚小助手",
+  "assistant.relatedQueries": "你可能想問",
+  "assistant.inputPlaceholder": "問我關於文物或這個頁面的問題…",
+  "assistant.send": "傳送",
+  "assistant.greeting": "你好！我是文遺小助手。可以問我文物、歷史、文化遺產，或目前頁面的用法。點上面的聯想詞，我能直接為你講解～",
+  "assistant.error": "小助手暫時無法回覆，請稍後再試。",
+  "assistant.errorTimeout": "聯網檢索耗時較長被中斷，請換個問法或稍後再試。",
+  "assistant.errorRateLimit": "請求太頻繁了，請稍等幾秒再試。",
+  "assistant.errorNetwork": "網路連線異常，請檢查網路後重試。",
+  "assistant.resetNotice": "已切換到新頁面，對話已重置，現在圍繞目前內容回答",
+  "assistant.currentPage": "目前：{title}",
+  "assistant.references": "參考資料",
+  "assistant.refOnSite": "站內",
+  "assistant.refSearch": "搜尋",
+  "assistant.referencesHint": "資料來源由 AI 聯網檢索生成，建議點擊核對原文",
 
   // ---------- 登入 / 註冊頁 ----------
   "login.title": "登入帳號",
@@ -363,6 +541,7 @@ const zhTW: Dict = {
 
   // ---------- 探索頁 ----------
   "explore.title": "探索藏品",
+  "explore.eyebrow": "數位遺產 · 民間文物",
   "explore.subtitle": "瀏覽由社群貢獻的文物與遺跡檔案。支援名稱搜尋、#標籤檢索與多維篩選。",
   "explore.searchPlaceholder": "搜尋文物名稱，或輸入 #標籤 按標籤過濾…",
   "explore.clearSearch": "清空搜尋",
@@ -383,6 +562,11 @@ const zhTW: Dict = {
   "explore.mapEmptyHint": "調整搜尋詞或篩選條件後再試。",
   "explore.errorTitle": "載入失敗",
   "explore.errorDesc": "載入典藏閣失敗：{msg}",
+  "explore.tabRecommended": "推薦",
+  "explore.tabFollowing": "關注",
+  "explore.emptyFollowing": "你關注的人的最新動態會顯示在這裡。",
+  "explore.emptyFollowingOf": "{name} 還沒有上傳文物。",
+  "explore.discoverPeople": "去發現更多收藏家",
 
   // ---------- 個人中心 ----------
   "profile.editProfile": "編輯資料",
@@ -443,6 +627,9 @@ const zhTW: Dict = {
   "detail.deleteDesc": "文物檔案已移除",
   "detail.deleteFailed": "刪除失敗",
   "detail.commentFailed": "評論失敗",
+  "detail.reply": "回覆",
+  "detail.replyPlaceholder": "回覆 {name}…",
+  "detail.likeComment": "讚這則評論",
 
   // ---------- 上傳表單 ----------
   "upload.title": "數位文物建檔登記",
@@ -455,6 +642,11 @@ const zhTW: Dict = {
   "upload.imageHint": "支援高清晰度 JPG, PNG, WebP 格式（檔案大小不超過 10MB）",
   "upload.changePhoto": "點擊或拖曳可更換照片",
   "upload.removeImage": "移除圖片",
+  "upload.addImage": "追加圖片",
+  "upload.cover": "封面",
+  "upload.setCover": "設為封面",
+  "upload.imageCount": "已選圖片",
+  "upload.errMaxImages": "最多上傳 6 張圖片（單張不超過 10MB）",
   "upload.aiEngine": "文物 AI 智繪引擎",
   "upload.aiEngineDesc": "一鍵分析影像並自動補充器物名稱、年代、門類與分類標籤",
   "upload.fillSample": "填充範例資料",
@@ -565,6 +757,52 @@ const en: Dict = {
   "common.all": "All",
   "common.other": "Other",
 
+  // ---------- Notifications ----------
+  "notif.bell": "Notifications",
+  "notif.title": "Notifications",
+  "notif.empty": "No notifications yet",
+  "notif.postedArtifact": "{name} posted a new artifact \"{title}\"",
+  "notif.commented": "{name} commented on \"{title}\"",
+  "notif.replied": "{name} replied to your comment on \"{title}\"",
+  "notif.followed": "{name} started following you",
+
+  // ---------- Social ----------
+  "social.loginToFollow": "Log in to follow",
+  "social.followFailed": "Follow failed, please retry",
+  "social.userNotFound": "User not found",
+  "social.curator": "Official curator",
+  "social.followers": "Followers",
+  "social.following": "Following",
+  "social.artifacts": "Artifacts",
+  "social.thisIsYou": "This is you",
+  "social.follow": "Follow",
+  "social.uploadsOf": "{name}'s collection",
+  "social.noUploads": "No artifacts uploaded yet",
+
+  // ---------- Following / followers ----------
+  "connections.title": "Following & Followers",
+  "connections.following": "Following",
+  "connections.followers": "Followers",
+  "connections.backToProfile": "Back to profile",
+  "connections.searchPlaceholder": "Search users",
+  "connections.emptyFollowing": "Not following anyone yet",
+  "connections.emptyFollowers": "No followers yet",
+  "connections.privateFollowing": "This user keeps their following list private",
+  "connections.privateFollowers": "This user keeps their followers list private",
+  "connections.privateHint": "This list is private per the user's settings",
+  "connections.notFound": "User not found",
+  "connections.mutual": "Mutual",
+  "connections.followsYou": "Follows you",
+  "connections.you": "You",
+  "connections.viewProfile": "View profile",
+  "connections.artifacts": "{n} items",
+  "connections.loadMore": "Load more",
+  "connections.privacyTitle": "Privacy",
+  "connections.privacyShowFollowing": "Show my following list",
+  "connections.privacyShowFollowers": "Show my followers list",
+  "connections.privacyHint": "When off, others cannot view your following / followers list (you can always see yours).",
+  "connections.privacySaved": "Privacy settings saved",
+
   // ---------- Domain categories (display layer; value stays original) ----------
   "opt.其他": "Other",
   "opt.唐": "Tang",
@@ -591,9 +829,45 @@ const en: Dict = {
 
   // ---------- Footer ----------
   "footer.tagline": "Crowdsourced digital heritage & folk artifact museum",
+  "footer.explore": "Explore",
+  "footer.about": "About",
+  "footer.aboutText": "RelicVault AI uses artificial intelligence to help everyone document, identify and pass on the folk artifacts around them.",
 
   // ---------- Language switcher ----------
   "lang.label": "Language",
+
+  // ---------- Font size (accessibility) ----------
+  "a11y.fontSize": "Text size",
+  "a11y.fontSize.small": "Small",
+  "a11y.fontSize.default": "Default",
+  "a11y.fontSize.large": "Large",
+  "a11y.fontSize.xl": "Extra large",
+  "a11y.fontSize.xxl": "Huge",
+  "a11y.fontSize.xxxl": "Largest",
+  "a11y.theme": "Theme",
+  "a11y.theme.dark": "Dark",
+  "a11y.theme.light": "Light",
+
+  // ---------- 浮窗小助手 ----------
+  "assistant.title": "Heritage Assistant",
+  "assistant.open": "Open assistant",
+  "assistant.minimize": "Minimize",
+  "assistant.hide": "Hide assistant",
+  "assistant.summon": "Summon assistant",
+  "assistant.relatedQueries": "You might ask",
+  "assistant.inputPlaceholder": "Ask me about artifacts or this page…",
+  "assistant.send": "Send",
+  "assistant.greeting": "Hi! I'm your Heritage Assistant. Ask me about artifacts, history, cultural heritage, or how to use the current page. Tap a suggestion above and I'll explain it for you.",
+  "assistant.error": "The assistant can't reply right now. Please try again later.",
+  "assistant.errorTimeout": "Web search took too long and was interrupted. Try rephrasing or try again shortly.",
+  "assistant.errorRateLimit": "Too many requests. Please wait a few seconds and try again.",
+  "assistant.errorNetwork": "Network error. Please check your connection and try again.",
+  "assistant.resetNotice": "Switched to a new page — conversation reset; now focusing on the current page.",
+  "assistant.currentPage": "Current: {title}",
+  "assistant.references": "References",
+  "assistant.refOnSite": "On-site",
+  "assistant.refSearch": "Search",
+  "assistant.referencesHint": "Sources are retrieved by AI — tap to verify the originals",
 
   // ---------- Login / Register pages ----------
   "login.title": "Log in to your account",
@@ -623,6 +897,7 @@ const en: Dict = {
 
   // ---------- Explore ----------
   "explore.title": "Explore Collections",
+  "explore.eyebrow": "Digital Heritage · Folk Artifacts",
   "explore.subtitle": "Browse artifact and heritage archives contributed by the community. Search by name, #tag, or filter across multiple dimensions.",
   "explore.searchPlaceholder": "Search artifact names, or enter #tag to filter…",
   "explore.clearSearch": "Clear search",
@@ -643,6 +918,11 @@ const en: Dict = {
   "explore.mapEmptyHint": "Adjust your search or filters and try again.",
   "explore.errorTitle": "Failed to load",
   "explore.errorDesc": "Failed to load collection: {msg}",
+  "explore.tabRecommended": "Recommended",
+  "explore.tabFollowing": "Following",
+  "explore.emptyFollowing": "Latest updates from people you follow will appear here.",
+  "explore.emptyFollowingOf": "{name} hasn't uploaded any artifacts yet.",
+  "explore.discoverPeople": "Discover more collectors",
 
   // ---------- Profile ----------
   "profile.editProfile": "Edit profile",
@@ -703,6 +983,9 @@ const en: Dict = {
   "detail.deleteDesc": "Artifact archive removed",
   "detail.deleteFailed": "Delete failed",
   "detail.commentFailed": "Comment failed",
+  "detail.reply": "Reply",
+  "detail.replyPlaceholder": "Reply to {name}…",
+  "detail.likeComment": "Like this comment",
 
   // ---------- Upload form ----------
   "upload.title": "Digital Artifact Registration",
@@ -715,6 +998,11 @@ const en: Dict = {
   "upload.imageHint": "High-res JPG, PNG, WebP supported (max 10MB)",
   "upload.changePhoto": "Click or drag to replace photo",
   "upload.removeImage": "Remove image",
+  "upload.addImage": "Add image",
+  "upload.cover": "Cover",
+  "upload.setCover": "Set as cover",
+  "upload.imageCount": "Images selected",
+  "upload.errMaxImages": "Up to 6 images (each under 10MB)",
   "upload.aiEngine": "Artifact AI engine",
   "upload.aiEngineDesc": "Analyze images in one click to auto-fill name, era, category and tags",
   "upload.fillSample": "Fill sample data",

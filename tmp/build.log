@@ -1,0 +1,64 @@
+  ▲ Next.js 14.2.21
+  - Environments: .env.local
+
+   Creating an optimized production build ...
+ ✓ Compiled successfully
+   Linting and checking validity of types ...
+   Collecting page data ...
+   Generating static pages (0/20) ...
+   Generating static pages (5/20) 
+   Generating static pages (10/20) 
+   Generating static pages (15/20) 
+ ✓ Generating static pages (20/20)
+   Finalizing page optimization ...
+   Collecting build traces ...
+
+Route (app)                                        Size     First Load JS
+┌ ƒ /                                              725 B           138 kB
+├ ƒ /_not-found                                    873 B          88.5 kB
+├ ƒ /api/ai/analyze                                0 B                0 B
+├ ƒ /api/analyze-artifact                          0 B                0 B
+├ ƒ /api/artifacts                                 0 B                0 B
+├ ƒ /api/artifacts/[id]                            0 B                0 B
+├ ƒ /api/artifacts/[id]/comments                   0 B                0 B
+├ ƒ /api/artifacts/[id]/comments/[commentId]       0 B                0 B
+├ ƒ /api/artifacts/[id]/comments/[commentId]/like  0 B                0 B
+├ ƒ /api/artifacts/[id]/favorite                   0 B                0 B
+├ ƒ /api/artifacts/[id]/like                       0 B                0 B
+├ ƒ /api/favorites                                 0 B                0 B
+├ ƒ /api/following                                 0 B                0 B
+├ ƒ /api/login                                     0 B                0 B
+├ ƒ /api/logout                                    0 B                0 B
+├ ƒ /api/me                                        0 B                0 B
+├ ƒ /api/notifications                             0 B                0 B
+├ ƒ /api/profile                                   0 B                0 B
+├ ƒ /api/register                                  0 B                0 B
+├ ƒ /api/upload                                    0 B                0 B
+├ ƒ /api/users/[id]                                0 B                0 B
+├ ƒ /api/users/[id]/connections                    0 B                0 B
+├ ƒ /api/users/[id]/follow                         0 B                0 B
+├ ƒ /artifacts                                     142 B          87.8 kB
+├ ƒ /artifacts/[id]                                5.79 kB         135 kB
+├ ƒ /artifacts/new                                 405 B           138 kB
+├ ƒ /callback                                      0 B                0 B
+├ ƒ /dashboard                                     142 B          87.8 kB
+├ ƒ /explore                                       150 B           137 kB
+├ ƒ /gallery                                       150 B           137 kB
+├ ○ /icon.svg                                      0 B                0 B
+├ ƒ /login                                         2.63 kB         141 kB
+├ ƒ /profile                                       12.6 kB         145 kB
+├ ƒ /register                                      2.63 kB         141 kB
+├ ƒ /u/[id]                                        4.93 kB         134 kB
+└ ƒ /u/[id]/connections                            3.34 kB         110 kB
++ First Load JS shared by all                      87.6 kB
+  ├ chunks/117-8aff241d2820b0ce.js                 31.6 kB
+  ├ chunks/fd9d1056-57a274fef06aaafa.js            53.6 kB
+  └ other shared chunks (total)                    2.39 kB
+
+
+ƒ Middleware                                       31.9 kB
+
+○  (Static)   prerendered as static content
+ƒ  (Dynamic)  server-rendered on demand
+
+BUILD_EXIT=0

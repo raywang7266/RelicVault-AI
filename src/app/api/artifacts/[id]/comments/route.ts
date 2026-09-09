@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { getSessionUserId } from "@/lib/auth/session";
 import { findById } from "@/lib/store/users";
-import { addComment } from "@/lib/store/artifacts";
+import { addComment, getArtifact } from "@/lib/store/artifacts";
+import { notifyCommentInteraction } from "@/lib/store/notifications";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -15,9 +16,12 @@ function noStore(res: NextResponse) {
 
 const bodySchema = z.object({
   text: z.string().min(1, "评论内容不能为空").max(500, "评论过长（≤500 字）"),
+  // 前端总是附带 parentId 字段（无父评论时为 null）；optional 仅放行 undefined，
+  // 因此必须同时允许 null，否则「直接评论」（非回复）会因 parentId:null 被 400 拒收。
+  parentId: z.string().nullable().optional(),
 });
 
-/** POST：为某文物添加一条评论（真实落库） */
+/** POST：为某文物添加一条评论 / 回复（真实落库） */
 export async function POST(
   req: NextRequest,
   ctx: { params: { id: string } }
@@ -52,7 +56,30 @@ export async function POST(
   try {
     const u = await findById(userId);
     const username = u?.displayName || u?.username || "匿名";
-    const result = await addComment(id, userId, username, parsed.data.text);
+    const result = await addComment(
+      id,
+      userId,
+      username,
+      parsed.data.text,
+      parsed.data.parentId ?? null
+    );
+
+    // 通知：文物主（被评论）+ 父评论作者（被回复）
+    try {
+      const artifact = await getArtifact(id, userId);
+      if (artifact) {
+        await notifyCommentInteraction({
+          ownerId: artifact.ownerId ?? "",
+          actorId: userId,
+          artifactId: id,
+          artifactTitle: artifact.title,
+          parentCommentAuthorId: result.parentCommentAuthorId,
+        });
+      }
+    } catch {
+      /* 通知失败不影响评论落库 */
+    }
+
     return noStore(
       NextResponse.json(
         { ok: true, comments: result.comments, count: result.count },

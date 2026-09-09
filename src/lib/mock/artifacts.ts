@@ -389,6 +389,8 @@ export const ARTIFACT_SEED: Artifact[] = RAW.map((r, i) => {
   return {
     ...rest,
     imageUrl: `https://picsum.photos/seed/${imgSeed}/600/${imgH}`,
+    // 种子数据均为单图；images[0] 与 imageUrl 保持一致
+    images: [`https://picsum.photos/seed/${imgSeed}/600/${imgH}`],
     latitude: geo?.latitude,
     longitude: geo?.longitude,
     locationName: geo?.locationName,

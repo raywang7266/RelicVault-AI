@@ -1,7 +1,12 @@
 import "server-only";
 import bcrypt from "bcryptjs";
 import connectDB from "@/lib/mongodb";
-import { User, type IUser } from "@/models/User";
+import {
+  User,
+  type IUser,
+  type PrivacySettings,
+  DEFAULT_PRIVACY,
+} from "@/models/User";
 
 const BCRYPT_COST = 10;
 
@@ -14,6 +19,7 @@ export interface UserDTO {
   avatarUrl: string;
   role: string;
   createdAt: string;
+  privacy: PrivacySettings;
 }
 
 /** 把 Mongoose 文档（或 lean 结果）转成安全的 DTO（_id→id，Date→ISO） */
@@ -29,6 +35,13 @@ export function toUserDTO(doc: IUser | Record<string, any>): UserDTO {
     createdAt: doc.createdAt
       ? new Date(doc.createdAt).toISOString()
       : new Date().toISOString(),
+    // 老文档无 privacy 字段 → 回落到默认「全部公开」
+    privacy: {
+      showFollowing:
+        (doc as any).privacy?.showFollowing ?? DEFAULT_PRIVACY.showFollowing,
+      showFollowers:
+        (doc as any).privacy?.showFollowers ?? DEFAULT_PRIVACY.showFollowers,
+    },
   };
 }
 
@@ -92,6 +105,7 @@ export interface ProfilePatch {
   username?: string;
   bio?: string;
   avatarUrl?: string;
+  privacy?: Partial<PrivacySettings>;
 }
 
 export async function updateProfile(
@@ -106,6 +120,12 @@ export async function updateProfile(
     update.username = patch.username.toLowerCase();
   if (patch.bio !== undefined) update.bio = patch.bio;
   if (patch.avatarUrl !== undefined) update.avatarUrl = patch.avatarUrl;
+  if (patch.privacy) {
+    if (patch.privacy.showFollowing !== undefined)
+      update["privacy.showFollowing"] = !!patch.privacy.showFollowing;
+    if (patch.privacy.showFollowers !== undefined)
+      update["privacy.showFollowers"] = !!patch.privacy.showFollowers;
+  }
 
   const doc = await User.findByIdAndUpdate(userId, update, {
     new: true,

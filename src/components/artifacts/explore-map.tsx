@@ -14,6 +14,7 @@ import type { Artifact } from "@/lib/types/artifact";
 import SmartImage from "./smart-image";
 import { useTranslation } from "@/lib/i18n/i18n-provider";
 import { translateOption } from "@/lib/i18n/locales";
+import { materialTheme } from "@/lib/types/material-theme";
 
 interface ExploreMapProps {
   artifacts: Artifact[];
@@ -95,7 +96,7 @@ export default function ExploreMap({
   if (geo.length === 0) {
     return (
       <div
-        className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-[#D6CBBA] bg-white/50 text-sm text-[#9C8E80]"
+        className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-[var(--border)] bg-white/50 text-sm text-[var(--muted-2)]"
         style={{ height }}
       >
         <p>{t("explore.mapEmpty")}</p>
@@ -110,7 +111,7 @@ export default function ExploreMap({
       zoom={4}
       scrollWheelZoom={false}
       style={{ height, width: "100%" }}
-      className="rounded-2xl overflow-hidden z-0 border border-[#E6DFC6]"
+      className="rounded-2xl overflow-hidden z-0 border border-[var(--border-soft)]"
     >
       <TileLayer
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
@@ -132,7 +133,7 @@ export default function ExploreMap({
             <div className="w-44">
               <a
                 href={`/artifacts/${a.id}`}
-                className="block overflow-hidden rounded-md bg-[#EFE6D5]"
+                className="block overflow-hidden rounded-md bg-[var(--chip-2)]"
                 style={{ aspectRatio: "3 / 2" }}
               >
                 <SmartImage
@@ -144,15 +145,26 @@ export default function ExploreMap({
               </a>
               <a
                 href={`/artifacts/${a.id}`}
-                className="mt-1.5 block font-serif text-sm font-bold leading-snug text-[#2C221E] hover:text-[#8C6D46]"
+                className="mt-1.5 block font-serif text-sm font-bold leading-snug text-[var(--ink)] hover:text-[var(--bronze)]"
               >
                 {a.title}
               </a>
-              <p className="text-[11px] text-[#7A6B5D]">
-                {a.era} · {translateOption(locale, a.category)}
+              <p className="flex items-center gap-1.5 text-[calc(11px*var(--font-scale))] text-[var(--muted)]">
+                <span
+                  className="h-2 w-2 shrink-0 rounded-full"
+                  style={{ background: materialTheme(a.category).bar }}
+                />
+                <span
+                  className="font-semibold uppercase tracking-[0.08em]"
+                  style={{ color: materialTheme(a.category).accent }}
+                >
+                  {translateOption(locale, a.category)}
+                </span>
+                <span className="text-[var(--dot)]">·</span>
+                <span>{a.era}</span>
               </p>
               {a.locationName && (
-                <p className="mt-0.5 truncate text-[11px] text-[#9C8E80]">
+                <p className="mt-0.5 truncate text-[calc(11px*var(--font-scale))] text-[var(--muted-2)]">
                   📍 {a.locationName}
                 </p>
               )}

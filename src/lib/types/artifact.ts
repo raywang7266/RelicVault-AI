@@ -40,7 +40,14 @@ export interface Artifact {
   preservationStatus: PreservationStatus;
   tags: string[];
   description: string;
+  /** 封面图（= images[0]） */
   imageUrl: string;
+  /**
+   * 全部图片；第一张为封面。
+   * 老数据可能为空数组，此时 UI 应回退为 [imageUrl]。
+   * 已在 store 层做归一化，前端可直接取用。
+   */
+  images: string[];
   /** 出土地 / 发现位置 */
   locationName?: string;
   latitude?: number;
@@ -62,6 +69,10 @@ export interface Artifact {
    * 用于个人中心"我的贡献"过滤与统计。
    */
   ownerId?: string;
+  /** 贡献者展示名（来自 User 表，用于详情页贡献者行） */
+  ownerName?: string;
+  /** 贡献者头像 URL（来自 User 表，用于卡片 / 详情页头像） */
+  ownerAvatar?: string;
 }
 
 /** 将 PreservationStatus 映射为筛选/展示用的中文短标签 */

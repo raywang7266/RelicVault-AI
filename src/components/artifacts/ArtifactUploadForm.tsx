@@ -43,6 +43,82 @@ function makeSampleImage(label: string, from: string, to: string): string {
   return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
 }
 
+/**
+ * 识图前把过大的图片压缩到安全体积。
+ *
+ * 背景：智谱 GLM（glm-4v-flash）对请求里的图片体积有上限（base64 约 10MB）。
+ * 前端允许上传最大 10MB 的原图，base64 编码后会膨胀到约 13MB，超出上限时
+ * 智谱直接返回「API 调用参数有误」→ 接口 502 → 前端表现为「AI 识图失败」。
+ * （实测：4000x5000 但仅 4.19MB 的图可成功，9.37MB 的图必失败，故是体积而非分辨率限制。）
+ *
+ * 这里在浏览器端用 canvas 先把最长边缩到 2048、再按质量递减压到 ≤4MB：
+ * 既避开体积上限，也大幅缩短上传耗时。压缩失败时回退原图，不阻断流程。
+ */
+/** 单件文物最多可上传的图片张数（与后端 schema、智谱总体积上限配套） */
+const MAX_UPLOAD_IMAGES = 6;
+
+async function compressImage(
+  dataUrl: string,
+  opts: { maxBase64Length?: number; maxSide?: number } = {}
+): Promise<string> {
+  const maxBase64Length = opts.maxBase64Length ?? 4 * 1024 * 1024;
+  const maxSide = opts.maxSide ?? 2048;
+  if (dataUrl.length <= maxBase64Length) return dataUrl;
+
+  const loadImage = (src: string) =>
+    new Promise<HTMLImageElement>((resolve, reject) => {
+      const img = new window.Image();
+      img.onload = () => resolve(img);
+      img.onerror = () => reject(new Error("image decode failed"));
+      img.src = src;
+    });
+
+  try {
+    const img = await loadImage(dataUrl);
+    const longest = Math.max(img.naturalWidth, img.naturalHeight) || maxSide;
+    const scale = Math.min(1, maxSide / longest);
+    const w = Math.max(1, Math.round(img.naturalWidth * scale));
+    const h = Math.max(1, Math.round(img.naturalHeight * scale));
+
+    const canvas = document.createElement("canvas");
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return dataUrl;
+
+    // JPEG 无透明通道，先铺白底，避免 PNG 透明区域被压成黑块
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, w, h);
+    ctx.drawImage(img, 0, 0, w, h);
+
+    let quality = 0.85;
+    let out = canvas.toDataURL("image/jpeg", quality);
+    while (out.length > maxBase64Length && quality > 0.4) {
+      quality = Math.max(0.4, quality - 0.15);
+      out = canvas.toDataURL("image/jpeg", quality);
+      if (quality === 0.4) break;
+    }
+    return out.length < dataUrl.length ? out : dataUrl;
+  } catch {
+    // 浏览器无法解码该格式等情况 → 回退原图，交由后端处理
+    return dataUrl;
+  }
+}
+
+/**
+ * 上传前的压缩（比识图压缩更严格）：最长边 1600、单张 ≤1.2MB。
+ *
+ * 为什么上传时就要压：图片以 data URL 内联存进 MongoDB，而单文档上限 16MB；
+ * 6 张合计约 7MB 既能守住该上限，也低于智谱单次请求约 10MB 的图片总体积上限，
+ * 让「多图一次送 AI」无需再额外瘦身。
+ */
+async function compressForUpload(dataUrl: string): Promise<string> {
+  return compressImage(dataUrl, {
+    maxSide: 1600,
+    maxBase64Length: 1.2 * 1024 * 1024,
+  });
+}
+
 /** 一批可一键填充的示例文物（循环切换，便于反复体验打标流程） */
 const SAMPLE_DATA: {
   title: string;
@@ -118,7 +194,10 @@ export interface ArtifactFormData {
   preservationStatus: PreservationStatus;
   tags: string[];
   description: string;
+  /** 封面（= images[0]） */
   imageUrl: string;
+  /** 全部图片（第一张为封面） */
+  images: string[];
   /** 出土地 / 发现位置：地点名称（详细地址） */
   locationName?: string;
   /** 纬度 (WGS84) */
@@ -156,7 +235,10 @@ export default function ArtifactUploadForm({
 }: ArtifactUploadFormProps) {
   const { t, locale } = useTranslation();
   // Form Field States
-  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  // 多图：imagePreviews[0] 为封面/主图
+  const [imagePreviews, setImagePreviews] = useState<string[]>([]);
+  /** 封面（派生值），供只需单张的旧逻辑使用 */
+  const imagePreview = imagePreviews[0] ?? null;
   const [title, setTitle] = useState("");
   const [era, setEra] = useState("");
   const [eraOther, setEraOther] = useState("");
@@ -183,25 +265,51 @@ export default function ArtifactUploadForm({
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Handle Drag & Drop / File Input
-  const processFile = (file: File) => {
-    if (!file.type.startsWith("image/")) {
+  // Handle Drag & Drop / File Input（支持一次选择多张）
+  const readAsDataURL = (file: File) =>
+    new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = () => reject(new Error("read failed"));
+      reader.readAsDataURL(file);
+    });
+
+  const processFiles = async (files: FileList | File[]) => {
+    const all = Array.from(files);
+    if (all.length === 0) return;
+
+    const images = all.filter((f) => f.type.startsWith("image/"));
+    if (images.length === 0) {
       setError(t("upload.errImageFormat"));
       return;
     }
-    if (file.size > 10 * 1024 * 1024) {
+    if (images.some((f) => f.size > 10 * 1024 * 1024)) {
       setError(t("upload.errImageSize"));
+      return;
+    }
+
+    const remaining = MAX_UPLOAD_IMAGES - imagePreviews.length;
+    if (remaining <= 0) {
+      setError(t("upload.errMaxImages"));
       return;
     }
 
     setError(null);
     setAiSuccessMsg(null);
 
-    const reader = new FileReader();
-    reader.onload = () => {
-      setImagePreview(reader.result as string);
-    };
-    reader.readAsDataURL(file);
+    // 逐张压缩：控制单张体积，避免多图撑爆 MongoDB 文档 / 智谱请求上限
+    const accepted = images.slice(0, remaining);
+    const compressed: string[] = [];
+    for (const f of accepted) {
+      const dataUrl = await readAsDataURL(f);
+      compressed.push(await compressForUpload(dataUrl));
+    }
+    setImagePreviews((prev) => [...prev, ...compressed]);
+
+    // 超出上限时只取前面几张，并给出提示
+    if (images.length > remaining) {
+      setError(t("upload.errMaxImages"));
+    }
   };
 
   const handleDragOver = (e: DragEvent<HTMLDivElement>) => {
@@ -217,23 +325,34 @@ export default function ArtifactUploadForm({
   const handleDrop = (e: DragEvent<HTMLDivElement>) => {
     e.preventDefault();
     setIsDragging(false);
-    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-      processFile(e.dataTransfer.files[0]);
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      void processFiles(e.dataTransfer.files);
     }
   };
 
   const handleInputChange = (e: ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      processFile(e.target.files[0]);
+    if (e.target.files && e.target.files.length > 0) {
+      void processFiles(e.target.files);
     }
+    // 允许重复选择同一批文件
+    e.target.value = "";
   };
 
-  const handleRemoveImage = (e: React.MouseEvent) => {
+  const handleRemoveImage = (index: number) => (e: React.MouseEvent) => {
     e.stopPropagation();
-    setImagePreview(null);
-    if (fileInputRef.current) {
-      fileInputRef.current.value = "";
-    }
+    setImagePreviews((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  /** 设为封面：把该图移到第一位（imagePreviews[0] 即封面） */
+  const handleSetCover = (index: number) => (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setImagePreviews((prev) => {
+      if (index <= 0 || index >= prev.length) return prev;
+      const next = prev.slice();
+      const [picked] = next.splice(index, 1);
+      next.unshift(picked);
+      return next;
+    });
   };
 
   // Tag Management
@@ -258,7 +377,7 @@ export default function ArtifactUploadForm({
 
   // Trigger AI Analysis API (/api/analyze-artifact)
   const handleAIAnalyze = async () => {
-    if (!imagePreview) {
+    if (imagePreviews.length === 0) {
       setError(t("upload.errNoImageForAi"));
       return;
     }
@@ -268,12 +387,17 @@ export default function ArtifactUploadForm({
     setAiSuccessMsg(null);
 
     try {
+      // 上传时已把单张压到 ≤1.2MB；这里再兜底压缩一次，然后**一次性把全部图片
+      // 送入智谱**（已实测支持多图），让 AI 综合多角度判断，比单张更准确。
+      const imagesForAI = await Promise.all(
+        imagePreviews.map((url) => compressImage(url))
+      );
       const response = await fetch("/api/analyze-artifact", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ image: imagePreview, locale }),
+        body: JSON.stringify({ images: imagesForAI, locale }),
       });
 
       if (!response.ok) {
@@ -350,7 +474,7 @@ export default function ArtifactUploadForm({
   const handleFillSample = () => {
     const s = SAMPLE_DATA[sampleIndex % SAMPLE_DATA.length];
     setSampleIndex((i) => i + 1);
-    setImagePreview(makeSampleImage(s.title, s.from, s.to));
+    setImagePreviews([makeSampleImage(s.title, s.from, s.to)]);
     setTitle(s.title);
     if (DYNASTY_OPTIONS.includes(s.era as any)) setEra(s.era);
     else {
@@ -374,7 +498,7 @@ export default function ArtifactUploadForm({
   // Form Submit Handler
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!imagePreview) {
+    if (imagePreviews.length === 0) {
       setError(t("upload.errNoImage"));
       return;
     }
@@ -394,7 +518,8 @@ export default function ArtifactUploadForm({
         preservationStatus,
         tags,
         description,
-        imageUrl: imagePreview,
+        imageUrl: imagePreviews[0],
+        images: imagePreviews,
         locationName: location?.locationName,
         latitude: location?.latitude,
         longitude: location?.longitude,
@@ -416,15 +541,15 @@ export default function ArtifactUploadForm({
 
   return (
     <div
-      className={`max-w-4xl mx-auto p-6 md:p-8 bg-[#FAF7F2] rounded-2xl border border-[#E6DFC6] shadow-sm text-[#3E3228] font-sans ${className}`}
+      className={`max-w-4xl mx-auto p-6 md:p-8 bg-[var(--panel)] rounded-2xl border border-[var(--border-soft)] shadow-sm text-[var(--brown)] font-sans ${className}`}
     >
       {/* Header Title Section */}
-      <div className="mb-6 pb-4 border-b border-[#E6DFC6] flex items-center justify-between">
+      <div className="mb-6 pb-4 border-b border-[var(--border-soft)] flex items-center justify-between">
         <div>
-          <h2 className="text-2xl md:text-3xl font-serif font-bold text-[#2C221E] tracking-tight">
+          <h2 className="text-2xl md:text-3xl font-serif font-bold text-[var(--ink)] tracking-tight">
             {t("upload.title")}
           </h2>
-          <p className="text-sm text-[#7A6B5D] mt-1">
+          <p className="text-sm text-[var(--muted)] mt-1">
             {t("upload.subtitle")}
           </p>
         </div>
@@ -454,7 +579,7 @@ export default function ArtifactUploadForm({
       <form onSubmit={handleSubmit} className="space-y-6">
         {/* Requirement 1: File Upload & Preview */}
         <div className="space-y-2">
-          <label className="block text-sm font-semibold text-[#2C221E]">
+          <label className="block text-sm font-semibold text-[var(--ink)]">
             {t("upload.imageHint")} <span className="text-red-500">*</span>
           </label>
           <div
@@ -462,10 +587,10 @@ export default function ArtifactUploadForm({
             onDragLeave={handleDragLeave}
             onDrop={handleDrop}
             onClick={() => fileInputRef.current?.click()}
-            className={`relative min-h-[280px] rounded-xl border-2 border-dashed transition-all cursor-pointer flex flex-col items-center justify-center p-4 bg-[#F5F0E6]/60 ${
+            className={`relative min-h-[280px] rounded-xl border-2 border-dashed transition-all cursor-pointer flex flex-col items-center justify-center p-4 bg-[var(--surface)] ${
               isDragging
-                ? "border-[#8C6D46] bg-[#EFE6D5] dropzone-active"
-                : "border-[#D6CBBA] hover:border-[#8C6D46] hover:bg-[#F2ECE1]"
+                ? "border-[var(--bronze)] bg-[var(--chip-2)] dropzone-active"
+                : "border-[var(--border)] hover:border-[var(--bronze)] hover:bg-[var(--chip)]"
             }`}
           >
             <input
@@ -473,42 +598,68 @@ export default function ArtifactUploadForm({
               ref={fileInputRef}
               onChange={handleInputChange}
               accept="image/jpeg,image/png,image/webp"
+              multiple
               className="hidden"
             />
 
-            {imagePreview ? (
-              <div className="relative w-full h-72 rounded-lg overflow-hidden group">
-                <Image
-                  src={imagePreview}
-                  alt="文物影像预览"
-                  fill
-                  unoptimized={imagePreview.startsWith("data:")}
-                  className="object-contain"
-                />
-                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-3">
-                  <span className="text-xs text-white bg-black/60 px-3 py-1.5 rounded-full border border-white/20 flex items-center gap-1.5">
-                    <RotateCcw className="w-3.5 h-3.5" /> {t("upload.changePhoto")}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={handleRemoveImage}
-                    className="p-1.5 bg-red-600 text-white rounded-full hover:bg-red-700 transition-colors"
-                    title={t("upload.removeImage")}
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
+            {imagePreviews.length > 0 ? (
+              <div className="w-full space-y-2">
+                <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+                  {imagePreviews.map((src, i) => (
+                    <div
+                      key={`${i}-${src.slice(0, 32)}`}
+                      className="relative aspect-square rounded-lg overflow-hidden group border border-[var(--border)] bg-white"
+                    >
+                      <Image
+                        src={src}
+                        alt={`文物影像 ${i + 1}`}
+                        fill
+                        unoptimized={src.startsWith("data:")}
+                        className="object-cover"
+                      />
+                      {i === 0 && (
+                        <span className="absolute left-1 top-1 text-[calc(10px*var(--font-scale))] px-1.5 py-0.5 rounded bg-[var(--bronze)] text-white">
+                          {t("upload.cover")}
+                        </span>
+                      )}
+                      <div className="absolute inset-0 bg-black/45 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-1">
+                        {i !== 0 && (
+                          <button
+                            type="button"
+                            onClick={handleSetCover(i)}
+                            className="text-[calc(10px*var(--font-scale))] px-2 py-1 rounded bg-white/90 text-[var(--ink)] hover:bg-white"
+                          >
+                            {t("upload.setCover")}
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          onClick={handleRemoveImage(i)}
+                          className="p-1 bg-red-600 text-white rounded-full hover:bg-red-700 transition-colors"
+                          title={t("upload.removeImage")}
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
                 </div>
+                <p className="text-[calc(11px*var(--font-scale))] text-[var(--muted-3)] text-center">
+                  {t("upload.imageCount")} {imagePreviews.length}/{MAX_UPLOAD_IMAGES}
+                  {" · "}
+                  {t("upload.clickOrDrag")}
+                </p>
               </div>
             ) : (
               <div className="text-center space-y-3 py-8">
-                <div className="w-14 h-14 rounded-full bg-[#EFE6D5] flex items-center justify-center mx-auto text-[#8C6D46] shadow-inner">
+                <div className="w-14 h-14 rounded-full bg-[var(--chip-2)] flex items-center justify-center mx-auto text-[var(--bronze)] shadow-inner">
                   <Upload className="w-7 h-7" />
                 </div>
                 <div>
-                  <p className="text-sm font-medium text-[#2C221E]">
+                  <p className="text-sm font-medium text-[var(--ink)]">
                     {t("upload.clickOrDrag")}
                   </p>
-                  <p className="text-xs text-[#8C7E72] mt-1">
+                  <p className="text-xs text-[var(--muted-3)] mt-1">
                     {t("upload.imageRequired")}
                   </p>
                 </div>
@@ -518,16 +669,16 @@ export default function ArtifactUploadForm({
         </div>
 
         {/* Requirement 2: AI Trigger Bar */}
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4 p-4 rounded-xl bg-gradient-to-r from-[#EFE6D5] to-[#E5D9C3] border border-[#D6CBBA] shadow-sm">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4 p-4 rounded-xl bg-gradient-to-r from-[var(--chip-2)] to-[var(--paper-2)] border border-[var(--border)] shadow-sm">
           <div className="flex items-center gap-3">
-            <div className="p-2.5 rounded-lg bg-[#8C6D46] text-white shadow-sm flex-shrink-0">
+            <div className="p-2.5 rounded-lg bg-[var(--bronze)] text-white shadow-sm flex-shrink-0">
               <Sparkles className="w-5 h-5" />
             </div>
             <div>
-            <p className="text-sm font-semibold text-[#2C221E]">
+            <p className="text-sm font-semibold text-[var(--ink)]">
               {t("upload.aiEngine")}
             </p>
-            <p className="text-xs text-[#6E5D4F]">
+            <p className="text-xs text-[var(--chip-ink)]">
               {t("upload.aiEngineDesc")}
             </p>
             </div>
@@ -537,7 +688,7 @@ export default function ArtifactUploadForm({
             <button
               type="button"
               onClick={handleFillSample}
-              className="px-4 py-2.5 rounded-lg border border-[#8C6D46] text-[#8C6D46] hover:bg-[#EFE6D5] font-medium text-sm transition-all flex items-center justify-center gap-2 shadow-sm cursor-pointer flex-shrink-0 pressable"
+              className="px-4 py-2.5 rounded-lg border border-[var(--bronze)] text-[var(--bronze)] hover:bg-[var(--chip-2)] font-medium text-sm transition-all flex items-center justify-center gap-2 shadow-sm cursor-pointer flex-shrink-0 pressable"
               title={t("upload.fillSample")}
             >
               <Wand2 className="w-4 h-4" />
@@ -548,7 +699,7 @@ export default function ArtifactUploadForm({
               type="button"
               onClick={handleAIAnalyze}
               disabled={isAnalyzing || !imagePreview}
-              className="px-5 py-2.5 rounded-lg bg-[#8C6D46] hover:bg-[#735836] disabled:bg-[#C2B7A7] text-white font-medium text-sm transition-all flex items-center justify-center gap-2 shadow-sm cursor-pointer disabled:cursor-not-allowed flex-shrink-0 pressable"
+              className="px-5 py-2.5 rounded-lg bg-[var(--bronze)] hover:bg-[var(--bronze-deep)] disabled:bg-[#C2B7A7] text-white font-medium text-sm transition-all flex items-center justify-center gap-2 shadow-sm cursor-pointer disabled:cursor-not-allowed flex-shrink-0 pressable"
             >
               {isAnalyzing ? (
                 <>
@@ -569,7 +720,7 @@ export default function ArtifactUploadForm({
         <div className="grid grid-cols-1 md:grid-cols-2 gap-5 pt-2">
           {/* Title */}
           <div className="space-y-1.5">
-            <label className="block text-sm font-medium text-[#3E3228]">
+            <label className="block text-sm font-medium text-[var(--brown)]">
               {t("upload.name")} <span className="text-red-500">*</span>
             </label>
             <input
@@ -579,13 +730,13 @@ export default function ArtifactUploadForm({
               placeholder={t("upload.namePlaceholder")}
               value={title}
               onChange={(e)  => setTitle(e.target.value)}
-              className="w-full px-3.5 py-2.5 rounded-lg border border-[#D6CBBA] bg-[#FAF7F2] text-[#2C221E] focus:outline-none focus:ring-2 focus:ring-[#8C6D46]/50 focus:border-[#8C6D46] transition-all text-sm field-filled"
+              className="w-full px-3.5 py-2.5 rounded-lg border border-[var(--border)] bg-[var(--panel)] text-[var(--ink)] focus:outline-none focus:ring-2 focus:ring-[var(--bronze)] focus:border-[var(--bronze)] transition-all text-sm field-filled"
             />
           </div>
 
           {/* Era / Dynasty */}
           <div className="space-y-1.5">
-            <label className="block text-sm font-medium text-[#3E3228]">
+            <label className="block text-sm font-medium text-[var(--brown)]">
               {t("upload.era")}
             </label>
             <select
@@ -600,7 +751,7 @@ export default function ArtifactUploadForm({
                   setEraOther("");
                 }
               }}
-              className="w-full px-3.5 py-2.5 rounded-lg border border-[#D6CBBA] bg-[#FAF7F2] text-[#2C221E] focus:outline-none focus:ring-2 focus:ring-[#8C6D46]/50 focus:border-[#8C6D46] transition-all text-sm cursor-pointer field-filled"
+              className="w-full px-3.5 py-2.5 rounded-lg border border-[var(--border)] bg-[var(--panel)] text-[var(--ink)] focus:outline-none focus:ring-2 focus:ring-[var(--bronze)] focus:border-[var(--bronze)] transition-all text-sm cursor-pointer field-filled"
             >
               {DYNASTY_OPTIONS.map((d) => (
                 <option key={d} value={d}>
@@ -615,14 +766,14 @@ export default function ArtifactUploadForm({
                 placeholder={t("upload.eraPlaceholder")}
                 value={eraOther}
                 onChange={(e) => setEraOther(e.target.value)}
-                className="w-full px-3.5 py-2.5 rounded-lg border border-[#D6CBBA] bg-[#FAF7F2] text-[#2C221E] focus:outline-none focus:ring-2 focus:ring-[#8C6D46]/50 focus:border-[#8C6D46] transition-all text-sm field-filled"
+                className="w-full px-3.5 py-2.5 rounded-lg border border-[var(--border)] bg-[var(--panel)] text-[var(--ink)] focus:outline-none focus:ring-2 focus:ring-[var(--bronze)] focus:border-[var(--bronze)] transition-all text-sm field-filled"
               />
             )}
           </div>
 
           {/* Category */}
           <div className="space-y-1.5">
-            <label className="block text-sm font-medium text-[#3E3228]">
+            <label className="block text-sm font-medium text-[var(--brown)]">
               {t("upload.category")}
             </label>
             <select
@@ -637,7 +788,7 @@ export default function ArtifactUploadForm({
                   setCategoryOther("");
                 }
               }}
-              className="w-full px-3.5 py-2.5 rounded-lg border border-[#D6CBBA] bg-[#FAF7F2] text-[#2C221E] focus:outline-none focus:ring-2 focus:ring-[#8C6D46]/50 focus:border-[#8C6D46] transition-all text-sm cursor-pointer field-filled"
+              className="w-full px-3.5 py-2.5 rounded-lg border border-[var(--border)] bg-[var(--panel)] text-[var(--ink)] focus:outline-none focus:ring-2 focus:ring-[var(--bronze)] focus:border-[var(--bronze)] transition-all text-sm cursor-pointer field-filled"
             >
               {MATERIAL_OPTIONS.map((m) => (
                 <option key={m} value={m}>
@@ -652,14 +803,14 @@ export default function ArtifactUploadForm({
                 placeholder={t("upload.categoryPlaceholder")}
                 value={categoryOther}
                 onChange={(e) => setCategoryOther(e.target.value)}
-                className="w-full px-3.5 py-2.5 rounded-lg border border-[#D6CBBA] bg-[#FAF7F2] text-[#2C221E] focus:outline-none focus:ring-2 focus:ring-[#8C6D46]/50 focus:border-[#8C6D46] transition-all text-sm field-filled"
+                className="w-full px-3.5 py-2.5 rounded-lg border border-[var(--border)] bg-[var(--panel)] text-[var(--ink)] focus:outline-none focus:ring-2 focus:ring-[var(--bronze)] focus:border-[var(--bronze)] transition-all text-sm field-filled"
               />
             )}
           </div>
 
           {/* Preservation Status */}
           <div className="space-y-1.5">
-            <label className="block text-sm font-medium text-[#3E3228]">
+            <label className="block text-sm font-medium text-[var(--brown)]">
               {t("upload.preservation")}
             </label>
             <select
@@ -668,7 +819,7 @@ export default function ArtifactUploadForm({
               onChange={(e) =>
                 setPreservationStatus(e.target.value as PreservationStatus)
               }
-              className="w-full px-3.5 py-2.5 rounded-lg border border-[#D6CBBA] bg-[#FAF7F2] text-[#2C221E] focus:outline-none focus:ring-2 focus:ring-[#8C6D46]/50 focus:border-[#8C6D46] transition-all text-sm cursor-pointer field-filled"
+              className="w-full px-3.5 py-2.5 rounded-lg border border-[var(--border)] bg-[var(--panel)] text-[var(--ink)] focus:outline-none focus:ring-2 focus:ring-[var(--bronze)] focus:border-[var(--bronze)] transition-all text-sm cursor-pointer field-filled"
             >
               {PRESERVATION_OPTIONS.map((opt) => (
                 <option key={opt.value} value={opt.value}>
@@ -681,19 +832,19 @@ export default function ArtifactUploadForm({
 
         {/* AI Suggested Tags / Clickable Badge Chips */}
         <div className="space-y-2">
-          <label className="block text-sm font-medium text-[#3E3228]">
+          <label className="block text-sm font-medium text-[var(--brown)]">
             {t("upload.tags")}
           </label>
-          <div key={`tags-${fillPulse}`} className="flex flex-wrap items-center gap-2 p-3.5 rounded-lg border border-[#D6CBBA] bg-[#F5F0E6]/40 min-h-[56px] field-filled">
+          <div key={`tags-${fillPulse}`} className="flex flex-wrap items-center gap-2 p-3.5 rounded-lg border border-[var(--border)] bg-[var(--surface)] min-h-[56px] field-filled">
             {tags.length === 0 && (
-              <span className="text-xs text-[#9C8E80] italic">
+              <span className="text-xs text-[var(--muted-2)] italic">
                 {t("upload.noTags")}
               </span>
             )}
             {tags.map((tag) => (
               <span
                 key={tag}
-                className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-[#EFE6D5] text-[#5C4831] border border-[#D8CCB7] hover:bg-[#E2D6C1] transition-colors shadow-xs"
+                className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-[var(--chip-2)] text-[var(--bronze-ink)] border border-[#D8CCB7] hover:bg-[#E2D6C1] transition-colors shadow-xs"
               >
                 #{tag}
                 <button
@@ -714,12 +865,12 @@ export default function ArtifactUploadForm({
                 value={tagInput}
                 onChange={(e) => setTagInput(e.target.value)}
                 onKeyDown={handleKeyDownTag}
-                className="w-full bg-transparent border-none text-sm text-[#2C221E] focus:outline-none px-1 py-1 placeholder-[#A39587]"
+                className="w-full bg-transparent border-none text-sm text-[var(--ink)] focus:outline-none px-1 py-1 placeholder-[#A39587]"
               />
               <button
                 type="button"
                 onClick={handleAddTag}
-                className="p-1.5 text-[#8C6D46] hover:bg-[#EFE6D5] rounded-md transition-colors"
+                className="p-1.5 text-[var(--bronze)] hover:bg-[var(--chip-2)] rounded-md transition-colors"
                 title={t("upload.addTag")}
               >
                 <Plus className="w-4 h-4" />
@@ -730,7 +881,7 @@ export default function ArtifactUploadForm({
 
         {/* Description Textarea */}
         <div className="space-y-1.5">
-          <label className="block text-sm font-medium text-[#3E3228]">
+          <label className="block text-sm font-medium text-[var(--brown)]">
             {t("upload.description")}
           </label>
           <textarea
@@ -739,7 +890,7 @@ export default function ArtifactUploadForm({
             placeholder={t("upload.descriptionPlaceholder")}
             value={description}
             onChange={(e) => setDescription(e.target.value)}
-            className="w-full px-3.5 py-2.5 rounded-lg border border-[#D6CBBA] bg-[#FAF7F2] text-[#2C221E] focus:outline-none focus:ring-2 focus:ring-[#8C6D46]/50 focus:border-[#8C6D46] transition-all text-sm resize-y leading-relaxed field-filled"
+            className="w-full px-3.5 py-2.5 rounded-lg border border-[var(--border)] bg-[var(--panel)] text-[var(--ink)] focus:outline-none focus:ring-2 focus:ring-[var(--bronze)] focus:border-[var(--bronze)] transition-all text-sm resize-y leading-relaxed field-filled"
           />
         </div>
 
@@ -747,11 +898,11 @@ export default function ArtifactUploadForm({
         <LocationPicker value={location} onChange={setLocation} />
 
         {/* Form Actions / Submit Button */}
-        <div className="pt-4 border-t border-[#E6DFC6] flex items-center justify-end gap-3">
+        <div className="pt-4 border-t border-[var(--border-soft)] flex items-center justify-end gap-3">
           <button
             type="submit"
             disabled={isSubmitting}
-            className="px-6 py-2.5 rounded-lg bg-[#2C221E] hover:bg-[#42332D] disabled:bg-[#8C827A] text-[#FAF7F2] font-medium text-sm transition-all flex items-center gap-2 shadow-sm cursor-pointer disabled:cursor-not-allowed pressable"
+            className="px-6 py-2.5 rounded-lg bg-[var(--ink)] hover:bg-[#42332D] disabled:bg-[#8C827A] text-[var(--panel)] font-medium text-sm transition-all flex items-center gap-2 shadow-sm cursor-pointer disabled:cursor-not-allowed pressable"
           >
             {isSubmitting ? (
               <>

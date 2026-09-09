@@ -13,6 +13,8 @@ import {
   type Locale,
 } from "@/lib/i18n/locales";
 import { InteractionsProvider } from "@/lib/mock/interactions";
+import { AssistantProvider } from "@/components/assistant/assistant-context";
+import { FloatingAssistant } from "@/components/assistant/floating-assistant";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-sans" });
 
@@ -42,15 +44,40 @@ export default async function RootLayout({
 
   return (
     <html lang={LOCALE_HTML_LANG[initialLocale]} suppressHydrationWarning>
+      <head>
+        {/* 高级感字体：拉丁文 Cormorant Garamond（展示衬线）+ 中文思源宋体/黑体。
+            通过运行时 <link> 加载，不依赖构建期网络，失败时优雅回落到系统字体。 */}
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link
+          rel="preconnect"
+          href="https://fonts.gstatic.com"
+          crossOrigin="anonymous"
+        />
+        <link
+          href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600;700&family=Noto+Sans+SC:wght@400;500;700&family=Noto+Serif+SC:wght@400;500;600;700&display=swap"
+          rel="stylesheet"
+        />
+        {/* 首帧前应用用户保存的字号与主题偏好，避免进入页面后文字突然缩放 /
+            整屏闪白闪黑。主题：未手动选择时跟随系统 prefers-color-scheme。 */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html:
+              "(function(){try{var s=localStorage.getItem('rv_font_scale');if(s){document.documentElement.style.setProperty('--font-scale',s);}var th=localStorage.getItem('rv_theme');var dark=th?th==='dark':window.matchMedia('(prefers-color-scheme: dark)').matches;if(dark){document.documentElement.classList.add('dark');}}catch(e){}})();",
+          }}
+        />
+      </head>
       <body className={`${inter.variable} font-sans antialiased`}>
-        <I18nProvider initialLocale={initialLocale}>
-          <InteractionsProvider>
-            <Toaster>
-              <Navbar initialUser={user} />
-              <main className="animate-fade-in">{children}</main>
-            </Toaster>
-          </InteractionsProvider>
-        </I18nProvider>
+        <AssistantProvider>
+          <I18nProvider initialLocale={initialLocale}>
+            <InteractionsProvider>
+              <Toaster>
+                <Navbar initialUser={user} />
+                <main className="animate-fade-in">{children}</main>
+              </Toaster>
+              <FloatingAssistant />
+            </InteractionsProvider>
+          </I18nProvider>
+        </AssistantProvider>
       </body>
     </html>
   );

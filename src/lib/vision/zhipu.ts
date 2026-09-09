@@ -8,7 +8,11 @@
  * 结构化：response_format: { type:"json_object" } + system 指令约束字段。
  */
 
-import type { VisionAnalysisResult, VisionProvider } from "./types";
+import type {
+  VisionAnalysisResult,
+  VisionImage,
+  VisionProvider,
+} from "./types";
 
 const ZHIPU_ENDPOINT = "https://open.bigmodel.cn/api/paas/v4/chat/completions";
 const DEFAULT_MODEL = "glm-4v-flash";
@@ -63,13 +67,30 @@ export class ZhipuVisionProvider implements VisionProvider {
     this.model = model || DEFAULT_MODEL;
   }
 
+  /**
+   * 支持一次传入多张图片（已实测 glm-4v-flash 可接收多个 image_url，
+   * 模型会综合多角度信息判断）。数组长度为 1 时即等价于原来的单图调用。
+   */
   async analyzeArtifact(
-    dataUrl: string,
-    mimeType: string,
+    images: VisionImage[],
     lang = "简体中文"
   ): Promise<VisionAnalysisResult> {
-    const base64 = dataUrl.includes(",") ? dataUrl.split(",")[1] : dataUrl;
     const systemPrompt = buildSystemPrompt(lang);
+
+    const imageParts = images.map((img) => {
+      const base64 = img.dataUrl.includes(",")
+        ? img.dataUrl.split(",")[1]
+        : img.dataUrl;
+      return {
+        type: "image_url",
+        image_url: { url: `data:${img.mimeType};base64,${base64}` },
+      };
+    });
+
+    const textPrompt =
+      images.length > 1
+        ? `这里是一组同一件文物的图片（共 ${images.length} 张，第一张为主图/封面，其余为不同角度或细节）。请综合所有图片的信息做判断，返回符合上述 JSON schema 的结构化结果（文本字段使用 ${lang}）。`
+        : `请分析这张文物图片，返回符合上述 JSON schema 的结构化结果（文本字段使用 ${lang}）。`;
 
     const body = {
       model: this.model,
@@ -77,18 +98,7 @@ export class ZhipuVisionProvider implements VisionProvider {
         { role: "system", content: systemPrompt },
         {
           role: "user",
-          content: [
-            {
-              type: "text",
-              text: `请分析这张文物图片，返回符合上述 JSON schema 的结构化结果（文本字段使用 ${lang}）。`,
-            },
-            {
-              type: "image_url",
-              image_url: {
-                url: `data:${mimeType};base64,${base64}`,
-              },
-            },
-          ],
+          content: [{ type: "text", text: textPrompt }, ...imageParts],
         },
       ],
       response_format: { type: "json_object" },

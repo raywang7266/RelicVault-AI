@@ -8,6 +8,10 @@ import type { Artifact } from "@/lib/types/artifact";
 import { statusBadgeClasses, statusLabel } from "@/lib/types/artifact";
 import type { CommentItem } from "@/lib/types/interactions";
 import SmartImage from "./smart-image";
+import Link from "next/link";
+import { FollowButton } from "@/components/social/follow-button";
+import { UserAvatar } from "@/components/ui/user-avatar";
+import { useTranslation } from "@/lib/i18n/i18n-provider";
 
 /** 点击标签跳转探索页按 #标签 检索；onNavigate 用于关闭弹窗等收尾操作 */
 function TagChip({
@@ -26,7 +30,7 @@ function TagChip({
         router.push(`/explore?tag=${encodeURIComponent(tag)}`);
         onNavigate?.();
       }}
-      className="rounded-full bg-[#F2ECE1] px-2 py-0.5 text-[11px] text-[#6E5D4F] transition-colors hover:bg-[#E2D6C1] hover:text-[#8C6D46]"
+      className="rounded-full bg-[var(--chip)] px-2 py-0.5 text-[calc(11px*var(--font-scale))] text-[var(--chip-ink)] transition-colors hover:bg-[#E2D6C1] hover:text-[var(--bronze)]"
     >
       #{tag}
     </button>
@@ -37,7 +41,7 @@ function TagChip({
 const DetailMap = dynamic(() => import("./detail-map"), {
   ssr: false,
   loading: () => (
-    <div className="flex h-[260px] items-center justify-center rounded-lg bg-[#F5F0E6] text-xs text-[#9C8E80]">
+    <div className="flex h-[260px] items-center justify-center rounded-lg bg-[var(--surface)] text-xs text-[var(--muted-2)]">
       地图加载中…
     </div>
   ),
@@ -73,6 +77,7 @@ export default function ArtifactDetail({
   onToggleFavorite,
 }: ArtifactDetailProps) {
   const [draft, setDraft] = useState("");
+  const { t } = useTranslation();
   const hasGeo =
     typeof artifact.latitude === "number" && typeof artifact.longitude === "number";
 
@@ -128,7 +133,7 @@ export default function ArtifactDetail({
       aria-label={`${artifact.title} 详情`}
     >
       <div
-        className="relative my-4 w-full max-w-3xl rounded-2xl border border-[#E6DFC6] bg-[#FAF7F2] shadow-2xl"
+        className="relative my-4 w-full max-w-3xl rounded-2xl border border-[var(--border-soft)] bg-[var(--panel)] shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         {/* 关闭按钮 */}
@@ -143,7 +148,7 @@ export default function ArtifactDetail({
 
         <div className="grid max-h-[88vh] grid-cols-1 md:grid-cols-2">
           {/* 左：大图 */}
-          <div className="flex max-h-[40vh] items-center justify-center overflow-hidden rounded-t-2xl bg-[#2C221E] md:max-h-none md:rounded-l-2xl md:rounded-tr-none">
+          <div className="flex max-h-[40vh] items-center justify-center overflow-hidden rounded-t-2xl bg-[var(--ink)] md:max-h-none md:rounded-l-2xl md:rounded-tr-none">
             <SmartImage
               src={artifact.imageUrl}
               alt={artifact.title}
@@ -154,12 +159,32 @@ export default function ArtifactDetail({
 
           {/* 右：信息 + 互动 */}
           <div className="flex max-h-[88vh] flex-col overflow-y-auto p-5">
-            <h2 className="pr-8 font-serif text-xl font-bold text-[#2C221E]">
+            <h2 className="pr-8 font-serif text-xl font-bold text-[var(--ink)]">
               {artifact.title}
             </h2>
-            <p className="mt-1 text-sm text-[#7A6B5D]">
+            <p className="mt-1 text-sm text-[var(--muted)]">
               {artifact.era} · {artifact.category}
             </p>
+
+            {/* 贡献者 + 关注（小红书式互动入口） */}
+            {artifact.ownerId && (
+              <div className="mt-2 flex items-center justify-between gap-2">
+                <Link
+                  href={`/u/${artifact.ownerId}`}
+                  onClick={onClose}
+                  className="inline-flex items-center gap-1.5 text-xs font-medium text-[var(--chip-ink)] hover:text-[var(--bronze)] hover:underline"
+                >
+                  <UserAvatar
+                    src={artifact.ownerAvatar}
+                    name={artifact.ownerName}
+                    size={22}
+                  />
+                  <span className="text-[var(--muted-2)]">{t("detail.contributor")}:</span>
+                  {artifact.ownerName || t("common.unknownUser")}
+                </Link>
+                <FollowButton targetId={artifact.ownerId} size="sm" />
+              </div>
+            )}
 
             {/* 标签 */}
             {artifact.tags.length > 0 && (
@@ -171,12 +196,12 @@ export default function ArtifactDetail({
             )}
 
             {/* 元数据 */}
-            <dl className="mt-4 space-y-2 rounded-xl border border-[#E6DFC6] bg-white/60 p-3.5 text-sm">
+            <dl className="mt-4 space-y-2 rounded-xl border border-[var(--border-soft)] bg-white/60 p-3.5 text-sm">
               <div className="flex items-center justify-between">
-                <dt className="text-[#8C7E72]">保存状态</dt>
+                <dt className="text-[var(--muted-3)]">保存状态</dt>
                 <dd>
                   <span
-                    className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium ${statusBadgeClasses(
+                    className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[calc(11px*var(--font-scale))] font-medium ${statusBadgeClasses(
                       artifact.preservationStatus
                     )}`}
                   >
@@ -186,16 +211,16 @@ export default function ArtifactDetail({
               </div>
               {hasGeo && artifact.locationName && (
                 <div className="flex items-start justify-between gap-3">
-                  <dt className="flex items-center gap-1 text-[#8C7E72]">
+                  <dt className="flex items-center gap-1 text-[var(--muted-3)]">
                     <MapPin className="h-3.5 w-3.5" /> 出土地
                   </dt>
-                  <dd className="text-right text-[#3E3228]">{artifact.locationName}</dd>
+                  <dd className="text-right text-[var(--brown)]">{artifact.locationName}</dd>
                 </div>
               )}
               {hasGeo && (
                 <div className="flex items-center justify-between">
-                  <dt className="text-[#8C7E72]">经纬度</dt>
-                  <dd className="tabular-nums text-[#3E3228]">
+                  <dt className="text-[var(--muted-3)]">经纬度</dt>
+                  <dd className="tabular-nums text-[var(--brown)]">
                     {artifact.latitude!.toFixed(5)}, {artifact.longitude!.toFixed(5)}
                   </dd>
                 </div>
@@ -204,7 +229,7 @@ export default function ArtifactDetail({
 
             {/* 地图图钉 */}
             {hasGeo && (
-              <div className="mt-3 overflow-hidden rounded-lg border border-[#D6CBBA]">
+              <div className="mt-3 overflow-hidden rounded-lg border border-[var(--border)]">
                 <DetailMap
                   latitude={artifact.latitude!}
                   longitude={artifact.longitude!}
@@ -214,13 +239,13 @@ export default function ArtifactDetail({
             )}
 
             {/* 描述 */}
-            <p className="mt-4 text-sm leading-relaxed text-[#3E3228]">
+            <p className="mt-4 text-sm leading-relaxed text-[var(--brown)]">
               {artifact.description}
             </p>
 
             {/* 点赞 / 收藏 */}
             {!hideInteractions && (
-              <div className="mt-4 flex items-center gap-3 border-t border-[#E6DFC6] pt-4">
+              <div className="mt-4 flex items-center gap-3 border-t border-[var(--border-soft)] pt-4">
                 <button
                   type="button"
                   onClick={() => {
@@ -230,7 +255,7 @@ export default function ArtifactDetail({
                   className={`relative inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium transition-colors ${
                     liked
                       ? "bg-[#FBEAEA] text-[#C0392B]"
-                      : "bg-[#EFE6D5] text-[#6E5D4F] hover:bg-[#E2D6C1]"
+                      : "bg-[var(--chip-2)] text-[var(--chip-ink)] hover:bg-[#E2D6C1]"
                   }`}
                   aria-pressed={liked}
                 >
@@ -263,7 +288,7 @@ export default function ArtifactDetail({
                   className={`relative inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium transition-colors ${
                     favorited
                       ? "bg-[#E7F0E4] text-[#3B5B28]"
-                      : "bg-[#EFE6D5] text-[#6E5D4F] hover:bg-[#E2D6C1]"
+                      : "bg-[var(--chip-2)] text-[var(--chip-ink)] hover:bg-[#E2D6C1]"
                     }`}
                   aria-pressed={favorited}
                 >
@@ -292,7 +317,7 @@ export default function ArtifactDetail({
                     href={`https://www.openstreetmap.org/?mlat=${artifact.latitude}&mlon=${artifact.longitude}#map=13/${artifact.latitude}/${artifact.longitude}`}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1 text-xs text-[#8C6D46] hover:underline"
+                    className="inline-flex items-center gap-1 text-xs text-[var(--bronze)] hover:underline"
                   >
                     <Navigation className="h-3.5 w-3.5" />
                     在地图中打开
@@ -304,7 +329,7 @@ export default function ArtifactDetail({
             {/* 评论区 */}
             {!hideInteractions && (
               <div className="mt-5">
-                <h3 className="text-sm font-semibold text-[#2C221E]">
+                <h3 className="text-sm font-semibold text-[var(--ink)]">
                   评论 {comments.length > 0 && `(${comments.length})`}
                 </h3>
 
@@ -318,13 +343,13 @@ export default function ArtifactDetail({
                       if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) submitComment();
                     }}
                     placeholder="留下你的见解…（⌘/Ctrl + Enter 发送）"
-                    className="min-h-[44px] flex-1 resize-none rounded-lg border border-[#D6CBBA] bg-white px-3 py-2 text-sm text-[#2C221E] focus:outline-none focus:ring-2 focus:ring-[#8C6D46]/50"
+                    className="min-h-[44px] flex-1 resize-none rounded-lg border border-[var(--border)] bg-white px-3 py-2 text-sm text-[var(--ink)] focus:outline-none focus:ring-2 focus:ring-[var(--bronze)]"
                   />
                   <button
                     type="button"
                     onClick={submitComment}
                     disabled={!draft.trim()}
-                    className="inline-flex items-center gap-1 rounded-lg bg-[#8C6D46] px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-[#735836] disabled:cursor-not-allowed disabled:bg-[#C2B7A7]"
+                    className="inline-flex items-center gap-1 rounded-lg bg-[var(--bronze)] px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-[var(--bronze-deep)] disabled:cursor-not-allowed disabled:bg-[#C2B7A7]"
                   >
                     <Send className="h-3.5 w-3.5" />
                     发表
@@ -334,15 +359,30 @@ export default function ArtifactDetail({
                 {/* 列表 */}
                 <ul className="mt-3 space-y-3">
                   {comments.length === 0 && (
-                    <li className="rounded-lg bg-white/50 px-3 py-4 text-center text-xs text-[#9C8E80]">
+                    <li className="rounded-lg bg-white/50 px-3 py-4 text-center text-xs text-[var(--muted-2)]">
                       还没有评论，来做第一个留言的人吧。
                     </li>
                   )}
                   {comments.map((c) => (
                     <li key={c.id} className="rounded-lg bg-white/70 px-3.5 py-2.5">
                       <div className="flex items-center justify-between">
-                        <span className="text-xs font-medium text-[#6E5D4F]">{c.author}</span>
-                        <span className="inline-flex items-center gap-2 text-[11px] text-[#A39587]">
+                        <span className="inline-flex items-center gap-1.5">
+                          <UserAvatar src={c.authorAvatar} name={c.author} size={22} />
+                          {c.authorId ? (
+                            <Link
+                              href={`/u/${c.authorId}`}
+                              onClick={onClose}
+                              className="text-xs font-medium text-[var(--chip-ink)] transition-colors hover:text-[var(--bronze)] hover:underline"
+                            >
+                              {c.author}
+                            </Link>
+                          ) : (
+                            <span className="text-xs font-medium text-[var(--chip-ink)]">
+                              {c.author}
+                            </span>
+                          )}
+                        </span>
+                        <span className="inline-flex items-center gap-2 text-[calc(11px*var(--font-scale))] text-[var(--muted-4)]">
                           <span>
                             {new Date(c.createdAt).toLocaleString("zh-CN", {
                               month: "2-digit",
@@ -355,7 +395,7 @@ export default function ArtifactDetail({
                             <button
                               type="button"
                               onClick={() => onDeleteComment(c.id)}
-                              className="text-[#9C8E80] transition-colors hover:text-[#9B2C2C]"
+                              className="text-[var(--muted-2)] transition-colors hover:text-[#9B2C2C]"
                               aria-label="删除评论"
                             >
                               删除
@@ -363,7 +403,7 @@ export default function ArtifactDetail({
                           )}
                         </span>
                       </div>
-                      <p className="mt-1 text-sm text-[#3E3228]">{c.text}</p>
+                      <p className="mt-1 text-sm text-[var(--brown)]">{c.text}</p>
                     </li>
                   ))}
                 </ul>

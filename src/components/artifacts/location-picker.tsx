@@ -20,7 +20,7 @@ const LocationMap = dynamic(() => import("./location-map"), {
   loading: () => {
     const { t } = useTranslation();
     return (
-      <div className="h-[220px] rounded-lg bg-[#F5F0E6] animate-pulse flex items-center justify-center text-xs text-[#9C8E80]">
+      <div className="h-[220px] rounded-lg bg-[var(--surface)] animate-pulse flex items-center justify-center text-xs text-[var(--muted-2)]">
         {t("loc.mapLoading")}
       </div>
     );
@@ -184,7 +184,7 @@ export default function LocationPicker({
     <div className="space-y-2" ref={containerRef}>
       <label
         htmlFor={id}
-        className="block text-sm font-medium text-[#3E3228]"
+        className="block text-sm font-medium text-[var(--brown)]"
       >
         {t("loc.label")}
       </label>
@@ -192,7 +192,7 @@ export default function LocationPicker({
       {/* 搜索框 + 定位按钮 */}
       <div className="relative flex items-center gap-2">
         <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#9C8E80] pointer-events-none" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--muted-2)] pointer-events-none" />
           <input
             id={id}
             type="text"
@@ -205,16 +205,16 @@ export default function LocationPicker({
               setGeoError(null);
             }}
             onFocus={() => suggestions.length > 0 && setShowList(true)}
-            className="w-full pl-9 pr-8 py-2.5 rounded-lg border border-[#D6CBBA] bg-[#FAF7F2] text-[#2C221E] focus:outline-none focus:ring-2 focus:ring-[#8C6D46]/50 focus:border-[#8C6D46] transition-all text-sm disabled:opacity-60"
+            className="w-full pl-9 pr-8 py-2.5 rounded-lg border border-[var(--border)] bg-[var(--panel)] text-[var(--ink)] focus:outline-none focus:ring-2 focus:ring-[var(--bronze)] focus:border-[var(--bronze)] transition-all text-sm disabled:opacity-60"
           />
           {isSearching && (
-            <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#8C6D46] animate-spin" />
+            <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--bronze)] animate-spin" />
           )}
           {!isSearching && query && (
             <button
               type="button"
               onClick={() => clearLocation()}
-              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#9C8E80] hover:text-[#5C4831]"
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[var(--muted-2)] hover:text-[var(--bronze-ink)]"
               title={t("common.clear")}
             >
               <X className="w-4 h-4" />
@@ -223,20 +223,20 @@ export default function LocationPicker({
 
           {/* POI 联想下拉 */}
           {showList && suggestions.length > 0 && (
-            <ul className="absolute z-20 mt-1 w-full max-h-72 overflow-auto rounded-lg border border-[#D6CBBA] bg-white shadow-lg divide-y divide-[#EFE6D5]">
+            <ul className="absolute z-20 mt-1 w-full max-h-72 overflow-auto rounded-lg border border-[var(--border)] bg-white shadow-lg divide-y divide-[var(--chip-2)]">
               {suggestions.map((place) => (
                 <li key={place.placeId}>
                   <button
                     type="button"
                     onClick={() => selectPlace(place)}
-                    className="w-full text-left px-3.5 py-2.5 flex items-start gap-2.5 hover:bg-[#F5F0E6] transition-colors"
+                    className="w-full text-left px-3.5 py-2.5 flex items-start gap-2.5 hover:bg-[var(--surface)] transition-colors"
                   >
-                    <MapPin className="w-4 h-4 text-[#8C6D46] mt-0.5 flex-shrink-0" />
+                    <MapPin className="w-4 h-4 text-[var(--bronze)] mt-0.5 flex-shrink-0" />
                     <span className="min-w-0">
-                      <span className="block text-sm font-medium text-[#2C221E] truncate">
+                      <span className="block text-sm font-medium text-[var(--ink)] truncate">
                         {place.name}
                       </span>
-                      <span className="block text-xs text-[#8C7E72] truncate">
+                      <span className="block text-xs text-[var(--muted-3)] truncate">
                         {place.displayName}
                       </span>
                     </span>
@@ -251,7 +251,7 @@ export default function LocationPicker({
           type="button"
           onClick={handleLocate}
           disabled={disabled || isLocating}
-          className="px-3.5 py-2.5 rounded-lg border border-[#8C6D46] text-[#8C6D46] hover:bg-[#EFE6D5] disabled:opacity-60 flex items-center gap-1.5 text-sm font-medium whitespace-nowrap transition-colors flex-shrink-0"
+          className="px-3.5 py-2.5 rounded-lg border border-[var(--bronze)] text-[var(--bronze)] hover:bg-[var(--chip-2)] disabled:opacity-60 flex items-center gap-1.5 text-sm font-medium whitespace-nowrap transition-colors flex-shrink-0"
           title={t("loc.locateTitle")}
         >
           {isLocating ? (
@@ -272,28 +272,28 @@ export default function LocationPicker({
 
       {/* 已选位置确认卡片 + 地图预览 */}
       {selected && (
-        <div className="mt-3 rounded-xl border border-[#D6CBBA] bg-[#F5F0E6]/50 p-3.5 space-y-3">
+        <div className="mt-3 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-3.5 space-y-3">
           <div className="flex items-start gap-2">
-            <MapPin className="w-4 h-4 text-[#8C6D46] mt-0.5 flex-shrink-0" />
+            <MapPin className="w-4 h-4 text-[var(--bronze)] mt-0.5 flex-shrink-0" />
             <div className="min-w-0 flex-1">
-              <p className="text-sm font-medium text-[#2C221E] break-words">
+              <p className="text-sm font-medium text-[var(--ink)] break-words">
                 {selected.locationName}
               </p>
-              <p className="text-xs text-[#8C7E72] mt-0.5 tabular-nums">
+              <p className="text-xs text-[var(--muted-3)] mt-0.5 tabular-nums">
                 经纬度：{selected.latitude.toFixed(6)}, {selected.longitude.toFixed(6)}
               </p>
             </div>
             <button
               type="button"
               onClick={clearLocation}
-              className="text-[#9C8E80] hover:text-red-600 transition-colors flex-shrink-0"
+              className="text-[var(--muted-2)] hover:text-red-600 transition-colors flex-shrink-0"
               title={t("loc.clearSelected")}
             >
               <X className="w-4 h-4" />
             </button>
           </div>
 
-          <div className="overflow-hidden rounded-lg border border-[#D6CBBA]">
+          <div className="overflow-hidden rounded-lg border border-[var(--border)]">
             <LocationMap
               latitude={selected.latitude}
               longitude={selected.longitude}
@@ -305,7 +305,7 @@ export default function LocationPicker({
             href={`https://www.openstreetmap.org/?mlat=${selected.latitude}&mlon=${selected.longitude}#map=13/${selected.latitude}/${selected.longitude}`}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center gap-1 text-xs text-[#8C6D46] hover:underline"
+            className="inline-flex items-center gap-1 text-xs text-[var(--bronze)] hover:underline"
           >
             <Navigation className="w-3.5 h-3.5" />
             {t("loc.openOsm")}
@@ -313,7 +313,7 @@ export default function LocationPicker({
         </div>
       )}
 
-      <p className="text-xs text-[#9C8E80]">
+      <p className="text-xs text-[var(--muted-2)]">
         {t("loc.hint")}
       </p>
     </div>

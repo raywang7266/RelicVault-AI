@@ -6,6 +6,7 @@ import {
   createArtifact,
   listArtifactsPublic,
 } from "@/lib/store/artifacts";
+import { getFollowingIds } from "@/lib/store/social";
 import type { PreservationStatus } from "@/lib/types/artifact";
 
 export const runtime = "nodejs";
@@ -26,7 +27,9 @@ const submitSchema = z.object({
   preservationStatus: z.string().optional(),
   tags: z.array(z.union([z.string(), z.number()])).optional(),
   description: z.string().optional(),
-  imageUrl: z.string().min(1, "文物图片（imageUrl）为必填项"),
+  imageUrl: z.string().optional(),
+  /** 多图（第一张为封面）。最多 6 张，由前端压缩后传入 */
+  images: z.array(z.string().min(1)).max(6, "最多上传 6 张图片").optional(),
   locationName: z.string().optional(),
   latitude: z.number().optional(),
   longitude: z.number().optional(),
@@ -50,6 +53,7 @@ export async function GET(req: NextRequest) {
   const dynasty = req.nextUrl.searchParams.get("dynasty")?.trim() || undefined;
   const material = req.nextUrl.searchParams.get("material")?.trim() || undefined;
   const status = req.nextUrl.searchParams.get("status")?.trim() || undefined;
+  const feed = req.nextUrl.searchParams.get("feed")?.trim() || undefined;
 
   // owner 必须是合法 ObjectId（24 位 hex）；非法值直接返回空列表（无匹配用户）。
   if (ownerParam && !OBJECTID_RE.test(ownerParam)) {
@@ -60,9 +64,16 @@ export async function GET(req: NextRequest) {
 
   const userId = await getSessionUserId();
 
+  // 关注流：仅返回「我关注的人」提交的文物
+  let followingIds: string[] | undefined;
+  if (feed === "following" && userId) {
+    followingIds = await getFollowingIds(userId);
+  }
+
   try {
     const artifacts = await listArtifactsPublic({
       ownerId: ownerParam,
+      followingIds,
       limit,
       q,
       tag,
@@ -117,6 +128,9 @@ export async function POST(req: NextRequest) {
       : "Intact"
   ) as PreservationStatus;
 
+  // 封面回退：优先用显式 imageUrl，否则取 images[0]；都没有则留空（前端必传其一）
+  const coverImage = data.imageUrl?.trim() || data.images?.[0] || "";
+
   try {
     const artifact = await createArtifact(
       {
@@ -126,7 +140,8 @@ export async function POST(req: NextRequest) {
         preservationStatus,
         tags: (data.tags ?? []).map((t) => String(t ?? "").trim()).filter(Boolean),
         description: data.description ?? "",
-        imageUrl: data.imageUrl,
+        imageUrl: coverImage,
+        images: data.images,
         locationName: data.locationName,
         latitude: data.latitude,
         longitude: data.longitude,

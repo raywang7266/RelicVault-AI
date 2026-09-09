@@ -29,6 +29,21 @@ A crowdsourced digital heritage museum powered by AI. Contributors upload a phot
 
 ---
 
+## Features
+
+- **Crowdsourced artifact archive** — upload photos, let the multimodal AI (Zhipu GLM) auto-identify era, category and tags, then record folk relics & heritage.
+- **Explore gallery** — search by name or `#tag`, filter by dynasty / category / preservation status; switch between a waterfall grid and a map view.
+- **Personal profile** — view your contributions and favorites, edit your bio & avatar.
+- **Social layer (小红书-style)** — the community features:
+  - **Follow / unfollow** any user; visit their public profile at `/u/<id>` to see their collection.
+  - **Explore "关注" feed** — a second tab on Explore shows only artifacts from people you follow, with a **followed-people avatar strip** at the top.
+  - **Red-dot notifications** — a bell in the header shows unread activity; the Explore "关注" tab shows its own red dot when someone you follow posts a **new artifact**. Clicking the tab (or opening the bell) clears the relevant dot.
+  - **Comments & replies** — one level of nested replies on every artifact, plus **comment likes**.
+  - **Activity notifications** — you get notified when someone comments on / replies to your artifact, follows you, or posts a new artifact (if you follow them).
+- **Demo data** is seeded automatically on first run so the gallery is never empty (see [Demo data](#demo-data-seeded-automatically)).
+
+---
+
 ## Quick Start — with Docker (recommended)
 
 Docker starts **both** the app and MongoDB, so there is no database to install and nothing else to configure.
@@ -117,12 +132,31 @@ curl -s http://localhost:3000/api/artifacts | head -c 200              # → JSO
 
 ### 5. Sign in
 
-Either register a new account, or use the bundled demo account (created automatically on first run):
+Either register a new account, or use one of the bundled demo accounts (created automatically on first run):
 
 | Field | Value |
 |-------|-------|
 | email | `curator@relicvault.app` |
 | password | `RelicVault@2026` |
+
+**12 more demo collectors** (same password `RelicVault@2026`) are also seeded so you can test the social features (follow / following feed / red-dot notifications / comment interactions) with realistic data — each has an avatar, bio, artifacts and comments:
+
+| email | Display name | Specialty |
+|-------|--------------|-----------|
+| `demo.qingci@relicvault.app` | 青瓷客·沈砚 | 宋元青瓷 |
+| `demo.jinshi@relicvault.app` | 金石生·陆铭 | 青铜器 |
+| `demo.hanmo@relicvault.app` | 翰墨斋·苏蕙 | 明清书画 |
+| `demo.yuyun@relicvault.app` | 玉韫山房·何玉 | 玉器 |
+| `demo.silu@relicvault.app` | 丝路拾遗·康宁 | 织物与钱币 |
+| `demo.minjian@relicvault.app` | 民间守艺·周阿婆 | 民俗器物 |
+| `demo.tongxiang@relicvault.app` | 铜香炉·童乡 | 铜炉与香事 |
+| `demo.cixiu@relicvault.app` | 苏绣坊·卫红 | 苏绣与老绣片 |
+| `demo.qiqi@relicvault.app` | 髹漆斋·齐修 | 大漆与剔红 |
+| `demo.beiwei@relicvault.app` | 碑帖阁·魏之 | 汉魏碑帖拓片 |
+| `demo.muyu@relicvault.app` | 木鱼庵·鱼幼 | 木雕与佛龛 |
+| `demo.yinzhang@relicvault.app` | 篆刻铺·章明 | 寿山石印章 |
+
+Typical test flow: log in as `curator@relicvault.app` → follow a collector on the Explore page → log in as that collector and upload a new artifact → back as curator, the Explore "关注" tab shows a red dot, plus a bell notification.
 
 ### Every day commands
 

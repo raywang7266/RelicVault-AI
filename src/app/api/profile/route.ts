@@ -34,6 +34,13 @@ const profileSchema = z.object({
     )
     .optional()
     .or(z.literal("")),
+  // 隐私：是否对外公开「我的关注」/「我的粉丝」列表（部分字段即可）
+  privacy: z
+    .object({
+      showFollowing: z.boolean().optional(),
+      showFollowers: z.boolean().optional(),
+    })
+    .optional(),
 });
 
 function noStore(res: NextResponse) {
@@ -62,6 +69,7 @@ export async function GET() {
         display_name: dto.displayName,
         bio: dto.bio,
         avatar_url: dto.avatarUrl,
+        privacy: dto.privacy,
       },
       // 根据当前登录用户的 userId 返回其建档的所有文物列表
       artifacts,
@@ -100,12 +108,23 @@ export async function PUT(req: NextRequest) {
     username?: string;
     bio?: string;
     avatarUrl?: string;
+    privacy?: { showFollowing?: boolean; showFollowers?: boolean };
   } = {};
   if (input.nickname !== undefined) patch.displayName = input.nickname.trim();
   if (input.username !== undefined) patch.username = input.username.trim().toLowerCase();
   if (input.bio !== undefined) patch.bio = input.bio.trim();
   if (input.avatarUrl !== undefined)
     patch.avatarUrl = input.avatarUrl === "" ? "" : input.avatarUrl;
+  if (input.privacy) {
+    patch.privacy = {
+      ...(input.privacy.showFollowing !== undefined
+        ? { showFollowing: input.privacy.showFollowing }
+        : {}),
+      ...(input.privacy.showFollowers !== undefined
+        ? { showFollowers: input.privacy.showFollowers }
+        : {}),
+    };
+  }
 
   try {
     const u = await updateProfile(userId, patch);
@@ -123,6 +142,7 @@ export async function PUT(req: NextRequest) {
           display_name: dto.displayName,
           bio: dto.bio,
           avatar_url: dto.avatarUrl,
+          privacy: dto.privacy,
         },
       })
     );

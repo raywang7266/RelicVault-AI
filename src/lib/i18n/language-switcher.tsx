@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Globe, Check, ChevronDown } from "lucide-react";
+import { Globe, Check } from "lucide-react";
 import { useTranslation } from "./i18n-provider";
 import { LOCALES, LOCALE_LABELS, type Locale } from "./locales";
 import { cn } from "@/lib/utils";
@@ -43,18 +43,14 @@ export default function LanguageSwitcher({
         aria-haspopup="listbox"
         aria-expanded={open}
         aria-label={t("lang.label")}
-        className="inline-flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+        title={LOCALE_LABELS[locale]}
+        className="rv-ctrl rv-ctrl-lang"
       >
-        <Globe className="h-4 w-4" />
-        <span className="hidden sm:inline">{LOCALE_LABELS[locale]}</span>
-        <ChevronDown className="h-3.5 w-3.5 opacity-70" />
+        <Globe className="h-[18px] w-[18px]" />
       </button>
 
       {open && (
-        <ul
-          role="listbox"
-          className="absolute right-0 z-[120] mt-1.5 w-40 overflow-hidden rounded-lg border border-border bg-white text-[#2C221E] shadow-lg"
-        >
+        <ul role="listbox" className="rv-menu w-40">
           {LOCALES.map((l) => (
             <li key={l}>
               <button
@@ -62,10 +58,7 @@ export default function LanguageSwitcher({
                 role="option"
                 aria-selected={l === locale}
                 onClick={() => choose(l)}
-                className={cn(
-                  "flex w-full items-center justify-between px-3 py-2 text-sm transition-colors hover:bg-secondary",
-                  l === locale && "font-semibold text-[#8C6D46]"
-                )}
+                className="rv-menu-item"
               >
                 {LOCALE_LABELS[l]}
                 {l === locale && <Check className="h-4 w-4" />}

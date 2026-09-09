@@ -19,6 +19,7 @@ import type {
 export interface CommentAuthorInfo {
   username?: string;
   displayName: string;
+  avatarUrl?: string;
 }
 
 /** 从一组 Artifact 文档里采集所有出现过的评论作者 userId，去 User 表一次性批量查最新用户名 */
@@ -33,10 +34,10 @@ async function loadCommentAuthors(
     }
   }
   if (ids.size === 0) return new Map();
-  // 仅查询 id、username、displayName 三个轻字段
+  // 仅查询 id、username、displayName、avatarUrl 四个轻字段
   const users = await User.find(
     { _id: { $in: Array.from(ids) } },
-    { username: 1, displayName: 1 }
+    { username: 1, displayName: 1, avatarUrl: 1 }
   )
     .lean()
     .exec();
@@ -45,6 +46,7 @@ async function loadCommentAuthors(
     map.set(String(u._id), {
       username: (u.username as string) || undefined,
       displayName: (u.displayName as string) || "",
+      avatarUrl: (u.avatarUrl as string) || undefined,
     });
   }
   return map;
@@ -94,6 +96,16 @@ export function docToArtifact(
     userId?: string | null;
     /** 评论作者最新展示名映射（userId -> displayName/username）。 */
     commentAuthors?: Map<string, CommentAuthorInfo>;
+    /** 贡献者展示名（来自 User 表）。 */
+    ownerName?: string;
+    /** 贡献者头像 URL（来自 User 表）。 */
+    ownerAvatar?: string;
+    /**
+     * 列表模式：把封面图从「内联 base64」换成轻量 URL
+     * `/api/artifacts/<id>/image`，避免列表 JSON 体积膨胀到十兆级
+     * （43 件文物 ≈ 12MB）。详情页不开启，仍返回 base64 供灯箱/缩放使用。
+     */
+    listMode?: boolean;
   } = {}
 ): ArtifactDTO {
   const era = (doc.era as string) || "未知";
@@ -132,15 +144,44 @@ export function docToArtifact(
         (latest?.displayName || latest?.username) ||
         c.username ||
         "匿名";
+      const likesRaw = Array.isArray(c.likes) ? c.likes : [];
+      // 列表模式下不内联 base64 头像（避免 JSON 体积膨胀），缺头像时前端回退首字。
+      const authorAvatarRaw = latest?.avatarUrl || undefined;
+      const authorAvatar =
+        opts.listMode && typeof authorAvatarRaw === "string" &&
+        authorAvatarRaw.startsWith("data:")
+          ? undefined
+          : authorAvatarRaw;
       return {
         id: String(c.id),
         author,
+        authorId: c.userId ? String(c.userId) : undefined,
+        authorAvatar,
         text: c.text,
         createdAt: c.createdAt
           ? new Date(c.createdAt).toISOString()
           : new Date().toISOString(),
+        parentId:
+          typeof c.parentId === "string" && c.parentId ? c.parentId : undefined,
+        likes: likesRaw.length,
+        likedByMe:
+          !!userId && likesRaw.some((id: any) => String(id) === userId),
       };
     });
+
+  const rawImage = (doc.imageUrl as string) || "";
+  const idStr = doc._id ? String(doc._id) : "";
+  // 列表模式：仅把「内联 base64」封面换成轻量 URL，避免 JSON 体积膨胀；
+  // 若本身已是 http(s) 外链（如老数据的 picsum），保持原 URL，不做无谓中转。
+  const useImageRoute = opts.listMode && !!idStr && rawImage.startsWith("data:");
+  const imageUrl = useImageRoute ? `/api/artifacts/${idStr}/image` : rawImage;
+  const images = opts.listMode && idStr
+    ? [imageUrl]
+    : Array.isArray(doc.images) && doc.images.length > 0
+      ? doc.images
+      : rawImage
+        ? [rawImage]
+        : [];
 
   return {
     id: String(doc._id),
@@ -151,7 +192,10 @@ export function docToArtifact(
     preservationStatus: mapDbStatusToFront(doc.preservationStatus),
     tags,
     description: doc.description ?? "",
-    imageUrl: doc.imageUrl ?? "",
+    imageUrl,
+    // 多图：老数据没有 images 字段（或为空）→ 归一化回退为 [imageUrl]，
+    // 保证前端永远能拿到一个非空数组，不必各处再做兜底判断。
+    images,
     // 对外只暴露脱敏后的 blurred* 坐标
     locationName: doc.locationName || undefined,
     latitude:
@@ -167,6 +211,14 @@ export function docToArtifact(
     likedByMe,
     favoritedByMe,
     ownerId: String(doc.userId),
+    ownerName: opts.ownerName || undefined,
+    // 列表模式下不内联 base64 头像（避免 JSON 体积膨胀），缺头像时前端回退首字。
+    ownerAvatar:
+      opts.listMode &&
+      typeof opts.ownerAvatar === "string" &&
+      opts.ownerAvatar.startsWith("data:")
+        ? undefined
+        : opts.ownerAvatar || undefined,
   };
 }
 
@@ -182,6 +234,8 @@ export interface ArtifactInput {
   tags?: string[];
   description?: string;
   imageUrl: string;
+  /** 全部图片（第一张为封面）。不传时默认 [imageUrl] */
+  images?: string[];
   locationName?: string;
   latitude?: number;
   longitude?: number;
@@ -196,6 +250,8 @@ export interface ArtifactPatch {
   tags?: string[];
   description?: string;
   imageUrl?: string;
+  /** 全部图片（第一张为封面） */
+  images?: string[];
   locationName?: string;
   latitude?: number | null;
   longitude?: number | null;
@@ -208,6 +264,8 @@ export interface ArtifactPatch {
 interface ListOptions {
   /** 仅返回某用户的提交；传 24 位 hex 的 ObjectId 字符串 */
   ownerId?: string;
+  /** 关注流：仅返回 followingIds 中用户提交的文物（探索页「关注」tab） */
+  followingIds?: string[];
   /** 文本搜索：匹配标题（不区分大小写）或标签（aiTags/manualTags） */
   q?: string;
   /** 标签搜索（不区分大小写，分别匹配 aiTags 与 manualTags） */
@@ -255,6 +313,11 @@ export async function listArtifactsPublic(
   await connectDB();
   const filter: Record<string, unknown> = {};
   if (options.ownerId) filter.userId = options.ownerId;
+  if (options.followingIds && options.followingIds.length > 0) {
+    filter.userId = {
+      $in: options.followingIds.map((id) => new mongoose.Types.ObjectId(id)),
+    };
+  }
   const limit = options.limit ?? 200;
 
   const docs = await Artifact.find(filter)
@@ -265,10 +328,33 @@ export async function listArtifactsPublic(
   // 一次性把所有出现过的评论作者 userId 查出来，渲染时优先用最新用户名
   const commentAuthors = await loadCommentAuthors(docs as Array<IArtifact>);
 
+  // 贡献者展示名 + 头像（ownerId -> {name, avatar}），用于卡片 / 详情页头像
+  const ownerIds = Array.from(
+    new Set(docs.map((d: any) => String(d.userId)).filter(Boolean))
+  );
+  const ownerInfos = new Map<string, { name: string; avatar: string }>();
+  if (ownerIds.length > 0) {
+    const owners = await User.find(
+      { _id: { $in: ownerIds.map((id) => new mongoose.Types.ObjectId(id)) } },
+      { displayName: 1, avatarUrl: 1 }
+    )
+      .lean()
+      .exec();
+    for (const o of owners) {
+      ownerInfos.set(String((o as any)._id), {
+        name: (o as any).displayName || "",
+        avatar: (o as any).avatarUrl || "",
+      });
+    }
+  }
+
   let dtos = docs.map((d) =>
     docToArtifact(d as IArtifact, {
       userId: options.userId,
       commentAuthors,
+      ownerName: ownerInfos.get(String((d as any).userId))?.name || undefined,
+      ownerAvatar: ownerInfos.get(String((d as any).userId))?.avatar || undefined,
+      listMode: true,
     })
   );
 
@@ -306,6 +392,15 @@ export async function listArtifactsPublic(
   return dtos.slice(0, limit);
 }
 
+/** 某用户名下的文物总数（用于公开主页的 artifactsCount） */
+export async function countArtifactsByOwner(ownerId: string): Promise<number> {
+  if (!mongoose.isValidObjectId(ownerId)) return 0;
+  await connectDB();
+  return Artifact.countDocuments({
+    userId: new mongoose.Types.ObjectId(ownerId),
+  });
+}
+
 export async function getArtifact(
   id: string,
   userId?: string | null
@@ -316,7 +411,22 @@ export async function getArtifact(
   if (!doc) return null;
   // 取该文物评论的作者最新用户名映射（解决「改名字后历史评论仍显示旧名」）
   const commentAuthors = await loadCommentAuthors([doc as IArtifact]);
-  return docToArtifact(doc as IArtifact, { userId, commentAuthors });
+  // 贡献者展示名 + 头像（用于详情页贡献者行头像）
+  let ownerName: string | undefined;
+  let ownerAvatar: string | undefined;
+  if (doc.userId) {
+    const owner = await User.findById(doc.userId).lean().exec();
+    if (owner) {
+      ownerName = (owner as any).displayName || undefined;
+      ownerAvatar = (owner as any).avatarUrl || undefined;
+    }
+  }
+  return docToArtifact(doc as IArtifact, {
+    userId,
+    commentAuthors,
+    ownerName,
+    ownerAvatar,
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -367,13 +477,18 @@ export async function toggleFavorite(
 // 评论（创建 / 删除，真实落库）
 // ---------------------------------------------------------------------------
 
-/** 添加评论。返回最新评论列表长度与新增评论 */
+/** 添加评论（支持回复）。返回最新评论列表、长度、父评论作者 id（用于回复通知） */
 export async function addComment(
   id: string,
   userId: string,
   username: string,
-  text: string
-): Promise<{ comments: ArtifactDTO["comments"]; count: number }> {
+  text: string,
+  parentId?: string | null
+): Promise<{
+  comments: ArtifactDTO["comments"];
+  count: number;
+  parentCommentAuthorId?: string | null;
+}> {
   if (!mongoose.isValidObjectId(id)) throw new Error("无效的文物 id");
   const clean = (text ?? "").trim();
   if (!clean) throw new Error("评论内容不能为空");
@@ -381,11 +496,22 @@ export async function addComment(
   await connectDB();
   const doc = await Artifact.findById(id);
   if (!doc) throw new Error("文物不存在");
+
+  // 校验父评论存在（回复场景）
+  let parentCommentAuthorId: string | null = null;
+  if (parentId) {
+    const parent = doc.comments.find((c: any) => String(c.id) === parentId);
+    if (!parent) throw new Error("父评论不存在");
+    parentCommentAuthorId = parent.userId ? String(parent.userId) : null;
+  }
+
   const comment = {
     id: `c_${new mongoose.Types.ObjectId().toHexString()}`,
     userId: new mongoose.Types.ObjectId(userId),
     username: username || "匿名",
     text: clean,
+    likes: [] as any[],
+    parentId: parentId || null,
     createdAt: new Date(),
   };
   doc.comments = [...doc.comments, comment as any];
@@ -393,7 +519,43 @@ export async function addComment(
   const dto = docToArtifact(doc as IArtifact, {
     commentAuthors: await loadCommentAuthors([doc as IArtifact]),
   });
-  return { comments: dto.comments, count: dto.comments.length };
+  return {
+    comments: dto.comments,
+    count: dto.comments.length,
+    parentCommentAuthorId,
+  };
+}
+
+/** 评论点赞 / 取消点赞（嵌入子文档，用 arrayFilters 精准定位）。返回最新点赞数与状态 */
+export async function toggleCommentLike(
+  id: string,
+  commentId: string,
+  userId: string
+): Promise<{ likedByMe: boolean; likes: number }> {
+  if (!mongoose.isValidObjectId(id)) throw new Error("无效的文物 id");
+  await connectDB();
+  const doc = await Artifact.findById(id);
+  if (!doc) throw new Error("文物不存在");
+  const target = doc.comments.find((c: any) => String(c.id) === commentId);
+  if (!target) throw new Error("评论不存在");
+  const uid = new mongoose.Types.ObjectId(userId);
+  const already = (target.likes || []).some((x: any) => String(x) === userId);
+  if (already) {
+    target.likes = (target.likes || []).filter(
+      (x: any) => String(x) !== userId
+    ) as any;
+  } else {
+    target.likes = [...(target.likes || []), uid] as any;
+  }
+  await doc.save();
+  const dto = docToArtifact(doc as IArtifact, {
+    commentAuthors: await loadCommentAuthors([doc as IArtifact]),
+  });
+  const updated = dto.comments.find((c) => c.id === commentId);
+  return {
+    likedByMe: !already,
+    likes: updated?.likes ?? target.likes.length,
+  };
 }
 
 /** 删除评论（仅评论作者或管理员）。返回最新评论列表长度 */
@@ -469,6 +631,11 @@ export async function createArtifact(
     title: input.title.trim(),
     description: input.description ?? "",
     imageUrl: input.imageUrl,
+    // 多图：未显式传 images 时退化为单图（[imageUrl]），保证老调用方无感
+    images:
+      Array.isArray(input.images) && input.images.length > 0
+        ? input.images
+        : [input.imageUrl],
     aiTags: [],
     manualTags: (input.tags ?? []).map(String),
     era: input.era?.trim() || "",
@@ -481,7 +648,17 @@ export async function createArtifact(
     userId,
   });
   // pre('save') 已自动计算 blurred*；这里再读一次确保返回脱敏坐标一致
-  return docToArtifact(doc.toObject() as IArtifact);
+  const created = docToArtifact(doc.toObject() as IArtifact);
+  // 触发粉丝通知（关注我的人会在「关注」流看到红点），失败不影响建档
+  try {
+    const { notifyFollowersOfNewArtifact } = await import(
+      "@/lib/store/notifications"
+    );
+    await notifyFollowersOfNewArtifact(userId, created.id, created.title);
+  } catch {
+    /* 通知失败不阻断主流程 */
+  }
+  return created;
 }
 
 export async function updateArtifact(
@@ -504,6 +681,11 @@ export async function updateArtifact(
   if (typeof patch.description === "string") doc.description = patch.description;
   if (typeof patch.imageUrl === "string" && patch.imageUrl.trim()) {
     doc.imageUrl = patch.imageUrl.trim();
+  }
+  // 多图整体替换；同时把封面同步为第一张，保持 imageUrl === images[0]
+  if (Array.isArray(patch.images) && patch.images.length > 0) {
+    doc.images = patch.images;
+    doc.imageUrl = patch.images[0];
   }
   if (typeof patch.preservationStatus === "string") {
     doc.preservationStatus = mapFrontStatusToDb(patch.preservationStatus);

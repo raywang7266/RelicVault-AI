@@ -20,19 +20,29 @@ export interface VisionAnalysisResult {
   tags: string[];
 }
 
+/** 交给视觉模型的一张图片 */
+export interface VisionImage {
+  /** 形如 `data:<mime>;base64,<data>` */
+  dataUrl: string;
+  /** 图片 MIME（image/jpeg|png|webp） */
+  mimeType: string;
+}
+
 /** 所有视觉 provider 必须实现的能力 */
 export interface VisionProvider {
   /** 人类可读名称，用于错误提示 */
   readonly name: string;
   /**
-   * 对单张文物图片做识图打标。
-   * @param dataUrl 形如 `data:<mime>;base64,<data>` 的图片 data URL
-   * @param mimeType 图片 MIME（image/jpeg|png|webp）
+   * 对文物图片做识图打标。
+   *
+   * 支持一次传入多张（已实测智谱 glm-4v-flash 可接收多张 image_url，
+   * 模型会综合多角度信息判断，比单张更准确）。传单张时数组长度即为 1。
+   *
+   * @param images 图片数组，第一张视为封面/主图
    * @param lang 输出语言指令（简体中文/繁體中文/English），让 AI 文本跟随界面语言
    */
   analyzeArtifact(
-    dataUrl: string,
-    mimeType: string,
+    images: VisionImage[],
     lang?: string
   ): Promise<VisionAnalysisResult>;
 }

@@ -1,0 +1,12 @@
+ Container relicvault-mongo Running 
+ Volume relicvault-mongo-data Creating 
+ Container relicvault-app Recreate 
+ Volume relicvault-mongo-data Creating 
+ Volume relicvault-mongo-data Created 
+ Volume relicvault-mongo-data Created 
+ Container relicvault-app Recreated 
+ Container relicvault-mongo Waiting 
+ Container relicvault-mongo Healthy 
+ Container relicvault-app Starting 
+ Container relicvault-app Started 
+UP_EXIT=0

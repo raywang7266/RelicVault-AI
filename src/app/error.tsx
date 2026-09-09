@@ -27,24 +27,24 @@ export default function Error({
       <div className="text-5xl" aria-hidden>
         🏺
       </div>
-      <h2 className="mt-4 font-serif text-2xl font-bold text-[#2C221E]">
+      <h2 className="mt-4 font-serif text-2xl font-bold text-[var(--ink)]">
         这个页面出了点问题
       </h2>
-      <p className="mt-2 text-sm text-[#7A6B5D]">
+      <p className="mt-2 text-sm text-[var(--muted)]">
         加载该文物档案时发生异常。你可以重试，或用上方导航栏前往其他页面。
       </p>
       <div className="mt-6 flex justify-center gap-3">
         <button
           type="button"
           onClick={() => reset()}
-          className="rounded-md bg-[#8C6D46] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#735836]"
+          className="rounded-md bg-[var(--bronze)] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[var(--bronze-deep)]"
         >
           重试
         </button>
         <button
           type="button"
           onClick={() => router.push("/explore")}
-          className="rounded-md border border-[#D6CBBA] px-4 py-2 text-sm font-medium text-[#5C4831] transition-colors hover:bg-[#EFE6D5]"
+          className="rounded-md border border-[var(--border)] px-4 py-2 text-sm font-medium text-[var(--bronze-ink)] transition-colors hover:bg-[var(--chip-2)]"
         >
           返回探索
         </button>

@@ -1,0 +1,204 @@
+ Image polymercaptial-app Building 
+#1 [internal] load local bake definitions
+#1 reading from stdin 537B 0.0s done
+#1 DONE 0.0s
+
+#2 [internal] load build definition from Dockerfile
+#2 transferring dockerfile: 1.62kB 0.0s done
+#2 DONE 0.1s
+
+#3 resolve image config for docker-image://docker.io/docker/dockerfile:1
+#3 ...
+
+#4 [auth] docker/dockerfile:pull token for registry-1.docker.io
+#4 DONE 0.0s
+
+#3 resolve image config for docker-image://docker.io/docker/dockerfile:1
+#3 DONE 1.8s
+
+#5 docker-image://docker.io/docker/dockerfile:1@sha256:ecfaec9ed6d810b56388c508f4121597bfbba70d41a6dfeee4d8cad5f295fc32
+#5 resolve docker.io/docker/dockerfile:1@sha256:ecfaec9ed6d810b56388c508f4121597bfbba70d41a6dfeee4d8cad5f295fc32 0.0s done
+#5 CACHED
+
+#6 [internal] load metadata for docker.io/library/node:22-slim
+#6 ...
+
+#7 [auth] library/node:pull token for registry-1.docker.io
+#7 DONE 0.0s
+
+#6 [internal] load metadata for docker.io/library/node:22-slim
+#6 DONE 1.3s
+
+#8 [internal] load .dockerignore
+#8 transferring context: 563B done
+#8 DONE 0.0s
+
+#9 [deps 1/4] FROM docker.io/library/node:22-slim@sha256:83f487e0a63425e5b4d146fb5e5be574bcbe1b7b843d3ebafdd95eaf7767a7e5
+#9 resolve docker.io/library/node:22-slim@sha256:83f487e0a63425e5b4d146fb5e5be574bcbe1b7b843d3ebafdd95eaf7767a7e5 0.0s done
+#9 DONE 0.0s
+
+#10 [internal] load build context
+#10 transferring context: 38.73kB 0.0s done
+#10 DONE 0.1s
+
+#11 [deps 2/4] WORKDIR /app
+#11 CACHED
+
+#12 [deps 3/4] COPY package.json package-lock.json ./
+#12 CACHED
+
+#13 [deps 4/4] RUN npm ci
+#13 CACHED
+
+#14 [builder 3/5] COPY --from=deps /app/node_modules ./node_modules
+#14 CACHED
+
+#15 [builder 4/5] COPY . .
+#15 DONE 0.2s
+
+#16 [builder 5/5] RUN npm run build
+#16 1.154 
+#16 1.154 > relicvault-ai@0.1.0 build
+#16 1.154 > next build
+#16 1.154 
+#16 2.489   ▲ Next.js 14.2.21
+#16 2.490 
+#16 2.521    Creating an optimized production build ...
+#16 23.27  ⚠ Compiled with warnings
+#16 23.27 
+#16 23.27 ./node_modules/jose/dist/webapi/lib/deflate.js
+#16 23.27 A Node.js API is used (CompressionStream at line: 18) which is not supported in the Edge Runtime.
+#16 23.27 Learn more: https://nextjs.org/docs/api-reference/edge-runtime
+#16 23.27 
+#16 23.27 Import trace for requested module:
+#16 23.27 ./node_modules/jose/dist/webapi/lib/deflate.js
+#16 23.27 ./node_modules/jose/dist/webapi/lib/jwe_decrypt.js
+#16 23.27 ./node_modules/jose/dist/webapi/jwt/decrypt.js
+#16 23.27 ./node_modules/jose/dist/webapi/index.js
+#16 23.27 ./src/lib/auth/jwt.ts
+#16 23.27 ./src/lib/auth/middleware.ts
+#16 23.27 
+#16 23.27 ./node_modules/jose/dist/webapi/lib/deflate.js
+#16 23.27 A Node.js API is used (DecompressionStream at line: 34) which is not supported in the Edge Runtime.
+#16 23.27 Learn more: https://nextjs.org/docs/api-reference/edge-runtime
+#16 23.27 
+#16 23.27 Import trace for requested module:
+#16 23.27 ./node_modules/jose/dist/webapi/lib/deflate.js
+#16 23.27 ./node_modules/jose/dist/webapi/lib/jwe_decrypt.js
+#16 23.27 ./node_modules/jose/dist/webapi/jwt/decrypt.js
+#16 23.27 ./node_modules/jose/dist/webapi/index.js
+#16 23.27 ./src/lib/auth/jwt.ts
+#16 23.27 ./src/lib/auth/middleware.ts
+#16 23.27 
+#16 37.11  ✓ Compiled successfully
+#16 37.12    Linting and checking validity of types ...
+#16 49.84    Collecting page data ...
+#16 55.08    Generating static pages (0/20) ...
+#16 55.53    Generating static pages (5/20) 
+#16 55.65    Generating static pages (10/20) 
+#16 55.65    Generating static pages (15/20) 
+#16 55.77  ✓ Generating static pages (20/20)
+#16 56.37    Finalizing page optimization ...
+#16 56.37    Collecting build traces ...
+#16 68.40 
+#16 68.43 Route (app)                                        Size     First Load JS
+#16 68.43 ┌ ƒ /                                              725 B           139 kB
+#16 68.43 ├ ƒ /_not-found                                    873 B          88.5 kB
+#16 68.43 ├ ƒ /api/ai/analyze                                0 B                0 B
+#16 68.43 ├ ƒ /api/analyze-artifact                          0 B                0 B
+#16 68.43 ├ ƒ /api/artifacts                                 0 B                0 B
+#16 68.43 ├ ƒ /api/artifacts/[id]                            0 B                0 B
+#16 68.43 ├ ƒ /api/artifacts/[id]/comments                   0 B                0 B
+#16 68.43 ├ ƒ /api/artifacts/[id]/comments/[commentId]       0 B                0 B
+#16 68.43 ├ ƒ /api/artifacts/[id]/comments/[commentId]/like  0 B                0 B
+#16 68.43 ├ ƒ /api/artifacts/[id]/favorite                   0 B                0 B
+#16 68.43 ├ ƒ /api/artifacts/[id]/like                       0 B                0 B
+#16 68.43 ├ ƒ /api/favorites                                 0 B                0 B
+#16 68.43 ├ ƒ /api/following                                 0 B                0 B
+#16 68.43 ├ ƒ /api/login                                     0 B                0 B
+#16 68.43 ├ ƒ /api/logout                                    0 B                0 B
+#16 68.43 ├ ƒ /api/me                                        0 B                0 B
+#16 68.43 ├ ƒ /api/notifications                             0 B                0 B
+#16 68.43 ├ ƒ /api/profile                                   0 B                0 B
+#16 68.43 ├ ƒ /api/register                                  0 B                0 B
+#16 68.43 ├ ƒ /api/upload                                    0 B                0 B
+#16 68.43 ├ ƒ /api/users/[id]                                0 B                0 B
+#16 68.43 ├ ƒ /api/users/[id]/connections                    0 B                0 B
+#16 68.43 ├ ƒ /api/users/[id]/follow                         0 B                0 B
+#16 68.43 ├ ƒ /artifacts                                     142 B          87.8 kB
+#16 68.43 ├ ƒ /artifacts/[id]                                5.79 kB         135 kB
+#16 68.43 ├ ƒ /artifacts/new                                 406 B           138 kB
+#16 68.43 ├ ƒ /callback                                      0 B                0 B
+#16 68.43 ├ ƒ /dashboard                                     142 B          87.8 kB
+#16 68.43 ├ ƒ /explore                                       151 B           137 kB
+#16 68.43 ├ ƒ /gallery                                       151 B           137 kB
+#16 68.43 ├ ○ /icon.svg                                      0 B                0 B
+#16 68.43 ├ ƒ /login                                         2.45 kB         140 kB
+#16 68.43 ├ ƒ /profile                                       12.6 kB         145 kB
+#16 68.43 ├ ƒ /register                                      2.45 kB         140 kB
+#16 68.43 ├ ƒ /u/[id]                                        4.95 kB         134 kB
+#16 68.43 └ ƒ /u/[id]/connections                            3.33 kB         110 kB
+#16 68.43 + First Load JS shared by all                      87.6 kB
+#16 68.43   ├ chunks/117-8aff241d2820b0ce.js                 31.6 kB
+#16 68.43   ├ chunks/fd9d1056-57a274fef06aaafa.js            53.6 kB
+#16 68.43   └ other shared chunks (total)                    2.39 kB
+#16 68.43 
+#16 68.43 
+#16 68.43 ƒ Middleware                                       31.9 kB
+#16 68.43 
+#16 68.43 ○  (Static)   prerendered as static content
+#16 68.43 ƒ  (Dynamic)  server-rendered on demand
+#16 68.43 
+#16 68.51 npm notice
+#16 68.51 npm notice New major version of npm available! 10.9.8 -> 12.0.2
+#16 68.51 npm notice Changelog: https://github.com/npm/cli/releases/tag/v12.0.2
+#16 68.51 npm notice To update run: npm install -g npm@12.0.2
+#16 68.51 npm notice
+#16 DONE 68.8s
+
+#17 [runner  3/12] COPY --from=builder /app/package.json ./package.json
+#17 CACHED
+
+#18 [runner  4/12] COPY --from=builder /app/node_modules ./node_modules
+#18 CACHED
+
+#19 [runner  5/12] COPY --from=builder /app/.next ./.next
+#19 DONE 0.5s
+
+#20 [runner  6/12] COPY --from=builder /app/public ./public
+#20 DONE 0.1s
+
+#21 [runner  7/12] COPY --from=builder /app/next.config.mjs ./next.config.mjs
+#21 DONE 0.1s
+
+#22 [runner  8/12] COPY --from=builder /app/postcss.config.mjs ./postcss.config.mjs
+#22 DONE 0.1s
+
+#23 [runner  9/12] COPY --from=builder /app/tailwind.config.ts ./tailwind.config.ts
+#23 DONE 0.1s
+
+#24 [runner 10/12] COPY --from=builder /app/tsconfig.json ./tsconfig.json
+#24 DONE 0.1s
+
+#25 [runner 11/12] COPY --from=builder /app/scripts ./scripts
+#25 DONE 0.1s
+
+#26 [runner 12/12] RUN chown -R node:node /app
+#26 DONE 87.1s
+
+#27 exporting to image
+#27 exporting layers
+#27 exporting layers 36.4s done
+#27 exporting manifest sha256:6077247c5a10fac71a0cee31fd294fc36410bd0005ee6434a6de7f16a059a6cc 0.0s done
+#27 exporting config sha256:d4dd9840fa29920c6dfebcf911a9dec2aefc239afc0cb530fa28d0efb0ab6093 done
+#27 exporting attestation manifest sha256:cccacfba68a2d54b2177cb5beaded28b6a09acd9cb85db9f6cbef6230b8c11c7 0.0s done
+#27 exporting manifest list sha256:b625c90ce7a7f14cbdd229821ef19732a9777cf873e0ce9a45ba46ddb332472b done
+#27 naming to docker.io/library/polymercaptial-app:latest done
+#27 unpacking to docker.io/library/polymercaptial-app:latest
+#27 unpacking to docker.io/library/polymercaptial-app:latest 15.7s done
+#27 DONE 52.2s
+
+#28 resolving provenance for metadata file
+#28 DONE 0.0s
+ Image polymercaptial-app Built 
+DOCKER_BUILD_EXIT=0

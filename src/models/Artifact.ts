@@ -17,7 +17,13 @@ export type PreservationDb =
 export interface IArtifact extends mongoose.Document {
   title: string;
   description: string;
+  /** 封面图（= images[0]）。保留此字段以兼容既有数据与所有只读 UI */
   imageUrl: string;
+  /**
+   * 全部图片（data URL 或外链），第一张为封面。
+   * 为空表示老数据（只有 imageUrl），读取时应回退为 [imageUrl]。
+   */
+  images: string[];
   aiTags: string[];
   manualTags: string[];
   era: string;
@@ -71,6 +77,8 @@ const artifactSchema = new Schema<IArtifact>(
     title: { type: String, required: true },
     description: { type: String, default: "" },
     imageUrl: { type: String, required: true },
+    /** 全部图片；空数组=老数据（仅 imageUrl）。前端上传时最多 6 张 */
+    images: { type: [String], default: [] },
     aiTags: { type: [String], default: [] },
     manualTags: { type: [String], default: [] },
     era: { type: String, default: "" },
@@ -115,6 +123,13 @@ const artifactSchema = new Schema<IArtifact>(
             },
             username: { type: String, default: "" },
             text: { type: String, required: true },
+            /** 评论点赞者 id 数组（参考小红书「评论点赞」） */
+            likes: {
+              type: [{ type: Schema.Types.ObjectId, ref: "User" }],
+              default: [],
+            },
+            /** 父评论 id（用于「回复」，仅一层嵌套） */
+            parentId: { type: String, default: null },
             createdAt: { type: Date, default: Date.now },
           },
           { _id: false }

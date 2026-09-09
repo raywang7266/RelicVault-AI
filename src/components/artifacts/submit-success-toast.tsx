@@ -13,11 +13,11 @@ export default function SubmitSuccessToast({ visible }: { visible: boolean }) {
 
   return (
     <div className="pointer-events-none fixed inset-x-0 top-6 z-[100] flex justify-center px-4">
-      <div className="animate-in fade-in slide-in-from-top-2 flex items-center gap-3 rounded-xl bg-[#2C221E] px-5 py-3.5 text-[#FAF7F2] shadow-2xl">
+      <div className="animate-in fade-in slide-in-from-top-2 flex items-center gap-3 rounded-xl bg-[var(--ink)] px-5 py-3.5 text-[var(--panel)] shadow-2xl">
         <CheckCircle2 className="h-6 w-6 flex-shrink-0 text-[#7FC77F]" />
         <div>
           <p className="text-sm font-semibold">{t("submitSuccess.title")}</p>
-          <p className="mt-0.5 text-xs text-[#D9CFBE]">
+          <p className="mt-0.5 text-xs text-[var(--muted-2)]">
             {t("submitSuccess.desc")}
           </p>
         </div>

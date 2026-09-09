@@ -44,12 +44,12 @@ const toastVariants = cva(
     variants: {
       variant: {
         default:
-          "border-border bg-[#FAF7F2] text-[#2C221E] [&_.rvtoast-icon]:text-[#8C6D46]",
+          "border-border bg-[var(--panel)] text-[var(--ink)] [&_.rvtoast-icon]:text-[var(--bronze)]",
         success:
           "border-[#D0E2C3] bg-[#F1F6EC] text-[#3B5B28] [&_.rvtoast-icon]:text-[#547E3B]",
         error:
           "border-[#EFC9C9] bg-[#FBEAEA] text-[#9B2C2C] [&_.rvtoast-icon]:text-[#C24A4A]",
-        info: "border-[#D6CBBA] bg-[#EFE6D5] text-[#5C4831] [&_.rvtoast-icon]:text-[#8C6D46]",
+        info: "border-[var(--border)] bg-[var(--chip-2)] text-[var(--bronze-ink)] [&_.rvtoast-icon]:text-[var(--bronze)]",
       },
     },
     defaultVariants: { variant: "default" },
@@ -76,7 +76,7 @@ const ToastClose = React.forwardRef<
   <ToastPrimitives.Close
     ref={ref}
     className={cn(
-      "absolute right-2 top-2 rounded-md p-1 text-current/60 transition hover:text-current focus:outline-none focus:ring-2 focus:ring-[#8C6D46]/40",
+      "absolute right-2 top-2 rounded-md p-1 text-current/60 transition hover:text-current focus:outline-none focus:ring-2 focus:ring-[var(--bronze)]",
       className
     )}
     toast-close=""

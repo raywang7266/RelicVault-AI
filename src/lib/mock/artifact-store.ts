@@ -75,6 +75,7 @@ export function addUserArtifact(input: IncomingArtifact): Artifact {
     tags,
     description: input.description?.trim() || "",
     imageUrl: input.imageUrl || "",
+    images: input.imageUrl ? [input.imageUrl] : [],
     locationName: input.locationName?.trim() || undefined,
     latitude: typeof input.latitude === "number" ? input.latitude : undefined,
     longitude: typeof input.longitude === "number" ? input.longitude : undefined,

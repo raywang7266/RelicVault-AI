@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import { z } from "zod";
 
 import { createVisionProvider, currentProviderKind } from "@/lib/vision";
+import type { VisionImage } from "@/lib/vision/types";
 import { isLocale, localeToZhipuLanguage } from "@/lib/i18n/locales";
 import type {
   AnalyzeArtifactError,
@@ -13,8 +14,19 @@ export const runtime = "nodejs";
 export const maxDuration = 30;
 
 /** 前端 ArtifactUploadForm.handleAIAnalyze 发送的是 JSON：{ image: dataURL, locale? } */
+/** 最多同时识图的张数（前端上限一致） */
+const MAX_IMAGES = 6;
+/** 智谱对单次请求图片总体积的上限（base64 后约 10MB） */
+const MAX_TOTAL_BASE64 = 10 * 1024 * 1024;
+
 const requestSchema = z.object({
-  image: z.string().min(1).startsWith("data:"),
+  /** 单图（旧字段，保留兼容） */
+  image: z.string().min(1).startsWith("data:").optional(),
+  /** 多图（首选；第一张为封面/主图） */
+  images: z
+    .array(z.string().min(1).startsWith("data:"))
+    .max(MAX_IMAGES, `最多同时识别 ${MAX_IMAGES} 张图片`)
+    .optional(),
   locale: z.string().optional(),
 });
 
@@ -54,9 +66,41 @@ export async function POST(
       );
     }
 
-    const dataUrl = parsed.data.image;
-    const mimeMatch = dataUrl.match(/^data:([^;]+);base64,/);
-    const mimeType = mimeMatch ? mimeMatch[1] : "image/jpeg";
+    // 统一收敛为图片数组：优先用 images，回退到旧的 image 单图字段
+    const imageList =
+      parsed.data.images && parsed.data.images.length > 0
+        ? parsed.data.images
+        : parsed.data.image
+          ? [parsed.data.image]
+          : [];
+
+    if (imageList.length === 0) {
+      return errorResponse(
+        "缺少图片数据",
+        400,
+        "请求需包含非空的 image 或 images（base64 data URL）。"
+      );
+    }
+
+    // 智谱对单次请求的图片**总体积**有上限（base64 约 10MB），超限只会返回
+    // 含糊的「API 调用参数有误」。前端发送前已逐张压缩；这里是兜底：给出可
+    // 操作的提示（而不是笼统的 502），便于定位与提示用户。
+    const totalBase64 = imageList.reduce((sum, u) => sum + u.length, 0);
+    if (totalBase64 > MAX_TOTAL_BASE64) {
+      return errorResponse(
+        "图片过大",
+        413,
+        `图片总体积超出 AI 识图上限（base64 后约 10MB，当前约 ${(totalBase64 / 1024 / 1024).toFixed(1)}MB），请减少张数或压缩后重试。`
+      );
+    }
+
+    const visionImages: VisionImage[] = imageList.map((dataUrl) => {
+      const mimeMatch = dataUrl.match(/^data:([^;]+);base64,/);
+      return {
+        dataUrl,
+        mimeType: mimeMatch ? mimeMatch[1] : "image/jpeg",
+      };
+    });
 
     // 读取界面语言（cookie rv_locale 为权威来源），让 AI 输出跟随语言
     const cookieLocale = cookies().get("rv_locale")?.value;
@@ -67,7 +111,7 @@ export async function POST(
     let analysis;
     try {
       const provider = createVisionProvider();
-      analysis = await provider.analyzeArtifact(dataUrl, mimeType, outputLang);
+      analysis = await provider.analyzeArtifact(visionImages, outputLang);
     } catch (err) {
       const message =
         err instanceof Error ? err.message : "AI 识图失败（未知错误）";

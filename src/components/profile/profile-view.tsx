@@ -25,6 +25,7 @@ import { useTranslation } from "@/lib/i18n/i18n-provider";
 import { translateOption } from "@/lib/i18n/locales";
 import type { Artifact } from "@/lib/types/artifact";
 import { statusBadgeClasses, statusLabel } from "@/lib/types/artifact";
+import { materialTheme } from "@/lib/types/material-theme";
 import ArtifactCard from "@/components/artifacts/artifact-card";
 import SmartImage from "@/components/artifacts/smart-image";
 import { useToast } from "@/components/ui/toaster";
@@ -55,6 +56,7 @@ export default function ProfileView({ user }: { user: SessionUser }) {
   const [tab, setTab] = useState<"uploads" | "favorites">("uploads");
   const [favArtifacts, setFavArtifacts] = useState<Artifact[]>([]);
   const [favLoading, setFavLoading] = useState(false);
+  const [myFollow, setMyFollow] = useState<{ followers: number; following: number } | null>(null);
 
   // 切换到「我的收藏」时拉取收藏的文物完整数据
   useEffect(() => {
@@ -80,6 +82,26 @@ export default function ProfileView({ user }: { user: SessionUser }) {
   // 已有 effect，这里再加一层兜底，保证任何情况下都能拿到服务器最新提交。
   useEffect(() => {
     refetch();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user.id]);
+
+  // 拉取「我的关注 / 粉丝」数量，供概览区跳转连接列表
+  useEffect(() => {
+    let active = true;
+    fetch(`/api/users/${user.id}`, { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (active && data?.follow) {
+          setMyFollow({
+            followers: data.follow.followersCount ?? 0,
+            following: data.follow.followingCount ?? 0,
+          });
+        }
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user.id]);
 
@@ -146,10 +168,10 @@ export default function ProfileView({ user }: { user: SessionUser }) {
   return (
     <div className="mx-auto max-w-5xl px-4 py-8">
       {/* 个人信息卡片 */}
-      <section className="rounded-2xl border border-[#E6DFC6] bg-[#FAF7F2] p-6">
+      <section className="rounded-2xl border border-[var(--border-soft)] bg-[var(--panel)] p-6">
         <div className="flex flex-col gap-5 sm:flex-row sm:items-center">
           {/* 头像 */}
-          <div className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-full border-2 border-[#D6CBBA] bg-[#EFE6D5]">
+          <div className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-full border-2 border-[var(--border)] bg-[var(--chip-2)]">
             {profile?.avatarUrl ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img
@@ -158,23 +180,39 @@ export default function ProfileView({ user }: { user: SessionUser }) {
                 className="h-full w-full object-cover"
               />
             ) : (
-              <UserIcon className="h-10 w-10 text-[#8C6D46]" />
+              <UserIcon className="h-10 w-10 text-[var(--bronze)]" />
             )}
           </div>
 
           <div className="min-w-0 flex-1">
-            <h1 className="truncate font-serif text-2xl font-bold text-[#2C221E]">
+            <h1 className="truncate font-serif text-2xl font-bold text-[var(--ink)]">
               {nickname}
             </h1>
-            <p className="mt-0.5 truncate text-sm text-[#7A6B5D]">{user.email}</p>
-            <p className="mt-1 flex items-center gap-1.5 text-xs text-[#9C8E80]">
+            <p className="mt-0.5 truncate text-sm text-[var(--muted)]">{user.email}</p>
+            <p className="mt-1 flex items-center gap-1.5 text-xs text-[var(--muted-2)]">
               <CalendarDays className="h-3.5 w-3.5" /> {t("profile.joinedOn", { date: joinedText })}
             </p>
             {profile?.bio && (
-              <p className="mt-2 text-sm leading-relaxed text-[#5C4831]">
+              <p className="mt-2 text-sm leading-relaxed text-[var(--bronze-ink)]">
                 {profile.bio}
               </p>
             )}
+            <p className="mt-2 flex items-center gap-4 text-xs text-[var(--muted)]">
+              <Link
+                href={`/u/${user.id}/connections?tab=followers`}
+                className="transition hover:text-[var(--bronze)]"
+              >
+                <b className="text-[var(--ink)]">{myFollow?.followers ?? 0}</b>{" "}
+                {t("social.followers")}
+              </Link>
+              <Link
+                href={`/u/${user.id}/connections?tab=following`}
+                className="transition hover:text-[var(--bronze)]"
+              >
+                <b className="text-[var(--ink)]">{myFollow?.following ?? 0}</b>{" "}
+                {t("social.following")}
+              </Link>
+            </p>
           </div>
 
           <div className="flex flex-col items-start gap-2 sm:items-end">
@@ -182,7 +220,7 @@ export default function ProfileView({ user }: { user: SessionUser }) {
               type="button"
               onClick={() => setEditOpen(true)}
               disabled={profileSaving}
-              className="rounded-lg border border-[#D6CBBA] px-4 py-2 text-sm font-medium text-[#5C4831] hover:bg-[#EFE6D5] disabled:opacity-60"
+              className="rounded-lg border border-[var(--border)] px-4 py-2 text-sm font-medium text-[var(--bronze-ink)] hover:bg-[var(--chip-2)] disabled:opacity-60"
             >
               <Pencil className="mr-1 inline h-4 w-4" /> {t("profile.editProfile")}
             </button>
@@ -212,14 +250,14 @@ export default function ProfileView({ user }: { user: SessionUser }) {
       {/* 我的贡献 / 我的收藏（Tab） */}
       <section className="mt-8">
         <div className="mb-4 flex items-center justify-between">
-          <div className="inline-flex rounded-lg border border-[#D6CBBA] bg-[#FAF7F2] p-0.5">
+          <div className="inline-flex rounded-lg border border-[var(--border)] bg-[var(--panel)] p-0.5">
             <button
               type="button"
               onClick={() => setTab("uploads")}
               className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
                 tab === "uploads"
-                  ? "bg-[#8C6D46] text-white"
-                  : "text-[#7A6B5D] hover:bg-[#EFE6D5]"
+                  ? "bg-[var(--bronze)] text-white"
+                  : "text-[var(--muted)] hover:bg-[var(--chip-2)]"
               }`}
               aria-pressed={tab === "uploads"}
             >
@@ -230,8 +268,8 @@ export default function ProfileView({ user }: { user: SessionUser }) {
               onClick={() => setTab("favorites")}
               className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
                 tab === "favorites"
-                  ? "bg-[#8C6D46] text-white"
-                  : "text-[#7A6B5D] hover:bg-[#EFE6D5]"
+                  ? "bg-[var(--bronze)] text-white"
+                  : "text-[var(--muted)] hover:bg-[var(--chip-2)]"
               }`}
               aria-pressed={tab === "favorites"}
             >
@@ -241,7 +279,7 @@ export default function ProfileView({ user }: { user: SessionUser }) {
           {tab === "uploads" && (
             <Link
               href="/artifacts/new"
-              className="inline-flex items-center gap-1 rounded-lg bg-[#8C6D46] px-3 py-2 text-sm font-semibold text-white transition hover:bg-[#78592F]"
+              className="inline-flex items-center gap-1 rounded-lg bg-[var(--bronze)] px-3 py-2 text-sm font-semibold text-white transition hover:bg-[var(--bronze-deep)]"
             >
               <Plus className="h-4 w-4" /> {t("profile.uploadNew")}
             </Link>
@@ -250,7 +288,7 @@ export default function ProfileView({ user }: { user: SessionUser }) {
 
         {tab === "uploads" ? (
           !uploadsLoaded ? (
-            <div className="rounded-2xl border border-dashed border-[#D6CBBA] bg-white/50 py-16 text-center text-sm text-[#9C8E80]">
+            <div className="rounded-2xl border border-dashed border-[var(--border)] bg-white/50 py-16 text-center text-sm text-[var(--muted-2)]">
               {t("common.loading")}
             </div>
           ) : uploads.length === 0 ? (
@@ -279,17 +317,17 @@ export default function ProfileView({ user }: { user: SessionUser }) {
             </div>
           )
         ) :           favLoading ? (
-          <div className="rounded-2xl border border-dashed border-[#D6CBBA] bg-white/50 py-16 text-center text-sm text-[#9C8E80]">
+          <div className="rounded-2xl border border-dashed border-[var(--border)] bg-white/50 py-16 text-center text-sm text-[var(--muted-2)]">
             {t("common.loading")}
           </div>
         ) : favArtifacts.length === 0 ? (
-          <div className="rounded-2xl border border-dashed border-[#D6CBBA] bg-white/50 py-16 text-center">
-            <p className="text-sm text-[#9C8E80]">
+          <div className="rounded-2xl border border-dashed border-[var(--border)] bg-white/50 py-16 text-center">
+            <p className="text-sm text-[var(--muted-2)]">
               {t("profile.emptyFavorites")}
             </p>
             <Link
               href="/explore"
-              className="mt-3 inline-flex items-center gap-1 rounded-lg bg-[#8C6D46] px-4 py-2 text-sm font-semibold text-white hover:bg-[#78592F]"
+              className="mt-3 inline-flex items-center gap-1 rounded-lg bg-[var(--bronze)] px-4 py-2 text-sm font-semibold text-white hover:bg-[var(--bronze-deep)]"
             >
               {t("profile.exploreCta")}
             </Link>
@@ -412,14 +450,14 @@ function StatTile({
   value: ReactNode;
 }) {
   return (
-    <div className="rounded-2xl border border-[#E6DFC6] bg-white p-4 text-center">
-      <div className="mx-auto mb-2 flex h-9 w-9 items-center justify-center rounded-full bg-[#F2ECE1] text-[#8C6D46]">
+    <div className="rounded-2xl border border-[var(--border-soft)] bg-white p-4 text-center">
+      <div className="mx-auto mb-2 flex h-9 w-9 items-center justify-center rounded-full bg-[var(--chip)] text-[var(--bronze)]">
         {icon}
       </div>
-      <div className="font-serif text-2xl font-bold text-[#2C221E] tabular-nums">
+      <div className="font-serif text-2xl font-bold text-[var(--ink)] tabular-nums">
         {value}
       </div>
-      <div className="mt-0.5 text-xs text-[#7A6B5D]">{label}</div>
+      <div className="mt-0.5 text-xs text-[var(--muted)]">{label}</div>
     </div>
   );
 }
@@ -455,11 +493,11 @@ function UploadCard({
     typeof artifact.longitude === "number";
 
   return (
-    <div className="overflow-hidden rounded-xl border border-[#E6DFC6] bg-white shadow-sm transition-all hover:shadow-md">
+    <div className="overflow-hidden rounded-xl border border-[var(--border-soft)] bg-white shadow-sm transition-all hover:shadow-md">
       <button
         type="button"
         onClick={onView}
-        className="relative block w-full overflow-hidden bg-[#EFE6D5]"
+        className="relative block w-full overflow-hidden bg-[var(--chip-2)]"
         style={{ aspectRatio: "3 / 4" }}
         aria-label={t("profile.viewAria", { title: artifact.title })}
       >
@@ -470,7 +508,7 @@ function UploadCard({
           className="h-full w-full object-cover"
         />
           {hasGeo && (
-          <span className="absolute left-2 top-2 inline-flex items-center gap-1 rounded-full bg-black/55 px-2 py-0.5 text-[11px] text-white backdrop-blur-sm">
+          <span className="absolute left-2 top-2 inline-flex items-center gap-1 rounded-full bg-black/55 px-2 py-0.5 text-[calc(11px*var(--font-scale))] text-white backdrop-blur-sm">
             <MapPin className="h-3 w-3" /> {t("profile.located")}
           </span>
         )}
@@ -478,11 +516,22 @@ function UploadCard({
 
       <div className="space-y-2 p-3.5">
         <button type="button" onClick={onView} className="block w-full text-left">
-          <h3 className="font-serif text-[15px] font-bold leading-snug text-[#2C221E] line-clamp-2">
+          <h3 className="font-serif text-[calc(15px*var(--font-scale))] font-bold leading-snug text-[var(--ink)] line-clamp-2">
             {artifact.title}
           </h3>
-          <p className="mt-1 text-xs text-[#7A6B5D]">
-            {artifact.era} · {translateOption(locale, artifact.category)}
+          <p className="mt-1 flex items-center gap-1.5 text-xs text-[var(--muted)]">
+            <span
+              className="h-2 w-2 shrink-0 rounded-full"
+              style={{ background: materialTheme(artifact.category).bar }}
+            />
+            <span
+              className="font-semibold uppercase tracking-[0.1em]"
+              style={{ color: materialTheme(artifact.category).accent }}
+            >
+              {translateOption(locale, artifact.category)}
+            </span>
+            <span className="text-[var(--dot)]">·</span>
+            <span>{artifact.era}</span>
           </p>
         </button>
 
@@ -491,7 +540,7 @@ function UploadCard({
             {artifact.tags.slice(0, 3).map((t) => (
               <span
                 key={t}
-                className="rounded-full bg-[#F2ECE1] px-2 py-0.5 text-[11px] text-[#6E5D4F]"
+                className="rounded-full bg-[var(--chip)] px-2 py-0.5 text-[calc(11px*var(--font-scale))] text-[var(--chip-ink)]"
               >
                 #{t}
               </span>
@@ -501,7 +550,7 @@ function UploadCard({
 
         <div className="flex items-center justify-between pt-1">
           <span
-            className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium ${statusBadgeClasses(
+            className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[calc(11px*var(--font-scale))] font-medium ${statusBadgeClasses(
               artifact.preservationStatus
             )}`}
           >
@@ -511,10 +560,10 @@ function UploadCard({
             <button
               type="button"
               onClick={onToggleLike}
-              className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[12px] font-medium transition-colors ${
+              className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[calc(12px*var(--font-scale))] font-medium transition-colors ${
                 liked
                   ? "bg-[#FBEAEA] text-[#C0392B]"
-                  : "bg-[#F5F0E6] text-[#8C7E72] hover:bg-[#EFE6D5]"
+                  : "bg-[var(--surface)] text-[var(--muted-3)] hover:bg-[var(--chip-2)]"
               }`}
               aria-pressed={liked}
               aria-label={liked ? t("profile.unlike") : t("profile.like")}
@@ -525,17 +574,17 @@ function UploadCard({
             <button
               type="button"
               onClick={onToggleFavorite}
-              className={`inline-flex items-center rounded-full px-2 py-0.5 text-[12px] font-medium transition-colors ${
+              className={`inline-flex items-center rounded-full px-2 py-0.5 text-[calc(12px*var(--font-scale))] font-medium transition-colors ${
                 favorited
                   ? "bg-[#E7F0E4] text-[#3B5B28]"
-                  : "bg-[#F5F0E6] text-[#8C7E72] hover:bg-[#EFE6D5]"
+                  : "bg-[var(--surface)] text-[var(--muted-3)] hover:bg-[var(--chip-2)]"
               }`}
               aria-pressed={favorited}
               aria-label={favorited ? t("profile.unfavorite") : t("profile.favorite")}
             >
               <Bookmark className={`h-3.5 w-3.5 ${favorited ? "fill-current" : ""}`} />
             </button>
-            <span className="inline-flex items-center gap-1 text-[12px] text-[#8C7E72]">
+            <span className="inline-flex items-center gap-1 text-[calc(12px*var(--font-scale))] text-[var(--muted-3)]">
               <MessageCircle className="h-3.5 w-3.5" />
               {commentCount}
             </span>
@@ -547,7 +596,7 @@ function UploadCard({
             type="button"
             onClick={onEdit}
             disabled={saving}
-            className="flex-1 inline-flex items-center justify-center gap-1 rounded-lg border border-[#D6CBBA] px-3 py-1.5 text-xs font-medium text-[#5C4831] transition hover:bg-[#EFE6D5] disabled:cursor-not-allowed disabled:opacity-60"
+            className="flex-1 inline-flex items-center justify-center gap-1 rounded-lg border border-[var(--border)] px-3 py-1.5 text-xs font-medium text-[var(--bronze-ink)] transition hover:bg-[var(--chip-2)] disabled:cursor-not-allowed disabled:opacity-60"
           >
             {saving ? (
               <>
@@ -576,11 +625,11 @@ function UploadCard({
 function EmptyState() {
   const { t } = useTranslation();
   return (
-    <div className="rounded-2xl border border-dashed border-[#D6CBBA] bg-white/50 py-16 text-center">
-      <p className="text-sm text-[#9C8E80]">{t("profile.emptyUploads")}</p>
+    <div className="rounded-2xl border border-dashed border-[var(--border)] bg-white/50 py-16 text-center">
+      <p className="text-sm text-[var(--muted-2)]">{t("profile.emptyUploads")}</p>
       <Link
         href="/artifacts/new"
-        className="mt-3 inline-flex items-center gap-1 rounded-lg bg-[#8C6D46] px-4 py-2 text-sm font-semibold text-white hover:bg-[#78592F]"
+        className="mt-3 inline-flex items-center gap-1 rounded-lg bg-[var(--bronze)] px-4 py-2 text-sm font-semibold text-white hover:bg-[var(--bronze-deep)]"
       >
         <Plus className="h-4 w-4" /> {t("profile.emptyUploadsCta")}
       </Link>

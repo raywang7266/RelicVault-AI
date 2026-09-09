@@ -11,6 +11,8 @@ export interface UserProfile {
   avatarUrl?: string;
   /** 唯一用户名（对应 profiles.username），用于公开主页 /profile/[username] */
   username?: string;
+  /** 社交隐私设置（是否公开关注 / 粉丝列表） */
+  privacy?: { showFollowing: boolean; showFollowers: boolean };
 }
 
 function defaultProfile(fallbackEmail?: string | null): UserProfile {
@@ -50,6 +52,12 @@ export function useProfile(userId: string, fallbackEmail?: string | null) {
             bio: p.bio || "",
             avatarUrl: p.avatar_url || undefined,
             username: p.username,
+            privacy: p.privacy
+              ? {
+                  showFollowing: !!p.privacy.showFollowing,
+                  showFollowers: !!p.privacy.showFollowers,
+                }
+              : undefined,
           });
         } else {
           setProfile(defaultProfile(fallbackEmail));
@@ -79,6 +87,14 @@ export function useProfile(userId: string, fallbackEmail?: string | null) {
             nickname: next.nickname,
             bio: next.bio,
             avatarUrl: next.avatarUrl ?? "",
+            ...(next.privacy
+              ? {
+                  privacy: {
+                    showFollowing: !!next.privacy.showFollowing,
+                    showFollowers: !!next.privacy.showFollowers,
+                  },
+                }
+              : {}),
           }),
         });
         if (!res.ok) {
